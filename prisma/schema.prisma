@@ -1,0 +1,510 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  TUTOR
+  STUDENT
+  PARENT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum TutorVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CourseType {
+  PRIVATE
+  GROUP
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EnrollmentStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum AssessmentType {
+  PRE_TEST
+  QUIZ
+  MOCK_EXAM
+  POST_TEST
+}
+
+enum SkillLevel {
+  NEEDS_WORK
+  BASIC
+  GOOD
+  EXCELLENT
+}
+
+enum PaymentMethod {
+  MANUAL_TRANSFER
+  PROMPTPAY
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String?
+  name         String
+  phone        String?
+  imageUrl     String?
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  studentProfile StudentProfile?
+  parentProfile  ParentProfile?
+  tutorProfile   TutorProfile?
+  payments       Payment[]       @relation("PaymentPayer")
+  reviews        Review[]        @relation("ReviewAuthor")
+
+  @@index([role])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model StudentProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  displayName   String?
+  gradeLevel    String?
+  schoolName    String?
+  learningGoals String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  parentLinks   ParentStudentLink[]
+  enrollments   Enrollment[]
+  attendances   Attendance[]
+  submissions   Submission[]
+  assessments   Assessment[]
+  skillProgress StudentSkillProgress[]
+  progressNotes ProgressNote[]
+  reviews       Review[]
+
+  @@index([gradeLevel])
+  @@index([createdAt])
+}
+
+model ParentProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  displayName String?
+  phone       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  studentLinks ParentStudentLink[]
+
+  @@index([createdAt])
+}
+
+model ParentStudentLink {
+  id           String    @id @default(uuid())
+  parentId     String
+  studentId    String
+  relationship String?
+  isActive     Boolean   @default(true)
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  parent  ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Restrict)
+  student StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+
+  @@unique([parentId, studentId])
+  @@index([parentId])
+  @@index([studentId])
+  @@index([parentId, isActive])
+  @@index([studentId, isActive])
+  @@index([createdAt])
+}
+
+model TutorProfile {
+  id                 String                  @id @default(uuid())
+  userId             String                  @unique
+  headline           String?
+  bio                String?
+  experienceYears    Int?
+  hourlyRateCents    Int?
+  verificationStatus TutorVerificationStatus @default(PENDING)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  courses              Course[]
+  progressNotes        ProgressNote[]
+  skillProgressUpdates StudentSkillProgress[] @relation("SkillProgressUpdatedBy")
+  reviews              Review[]
+
+  @@index([verificationStatus])
+  @@index([createdAt])
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courses Course[]
+
+  @@index([name])
+}
+
+model Course {
+  id            String       @id @default(uuid())
+  tutorId       String
+  subjectId     String
+  title         String
+  slug          String       @unique
+  description   String?
+  level         String       @default("all-levels")
+  type          CourseType
+  status        CourseStatus @default(DRAFT)
+  priceCents    Int          @default(0)
+  capacity      Int?
+  totalSessions Int          @default(1)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  tutor         TutorProfile    @relation(fields: [tutorId], references: [id], onDelete: Restrict)
+  subject       Subject         @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  enrollments   Enrollment[]
+  sessions      LessonSession[]
+  assignments   Assignment[]
+  assessments   Assessment[]
+  skills        Skill[]
+  progressNotes ProgressNote[]
+  reviews       Review[]
+  payments      Payment[]
+
+  @@index([tutorId])
+  @@index([subjectId])
+  @@index([level])
+  @@index([status])
+  @@index([type])
+  @@index([tutorId, status])
+  @@index([subjectId, status])
+  @@index([status, publishedAt])
+  @@index([createdAt])
+}
+
+model Enrollment {
+  id          String           @id @default(uuid())
+  studentId   String
+  courseId    String
+  status      EnrollmentStatus @default(PENDING)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+  cancelledAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  student       StudentProfile         @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  course        Course                 @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  attendances   Attendance[]
+  submissions   Submission[]
+  assessments   Assessment[]
+  skillProgress StudentSkillProgress[]
+  progressNotes ProgressNote[]
+  payments      Payment[]
+
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
+  @@index([studentId, courseId])
+  @@index([courseId, status])
+  @@index([studentId, status])
+}
+
+model LessonSession {
+  id          String        @id @default(uuid())
+  courseId    String
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime?
+  meetingUrl  String?
+  status      SessionStatus @default(SCHEDULED)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  attendances Attendance[]
+
+  @@index([courseId])
+  @@index([status])
+  @@index([startsAt])
+  @@index([courseId, startsAt])
+}
+
+model Attendance {
+  id           String           @id @default(uuid())
+  sessionId    String
+  studentId    String
+  enrollmentId String
+  status       AttendanceStatus
+  markedAt     DateTime         @default(now())
+  note         String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  session    LessonSession  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([status])
+  @@index([enrollmentId, status])
+}
+
+model Assignment {
+  id           String    @id @default(uuid())
+  courseId     String
+  title        String
+  instructions String?
+  dueAt        DateTime?
+  maxScore     Decimal?  @db.Decimal(6, 2)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  submissions Submission[]
+
+  @@index([courseId])
+  @@index([dueAt])
+}
+
+model Submission {
+  id           String    @id @default(uuid())
+  assignmentId String
+  studentId    String
+  enrollmentId String
+  content      String?
+  fileUrl      String?
+  submittedAt  DateTime  @default(now())
+  score        Decimal?  @db.Decimal(6, 2)
+  feedback     String?
+  gradedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  assignment Assignment     @relation(fields: [assignmentId], references: [id], onDelete: Restrict)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([submittedAt])
+  @@index([enrollmentId, submittedAt])
+}
+
+model Assessment {
+  id           String         @id @default(uuid())
+  courseId     String
+  studentId    String
+  enrollmentId String
+  title        String
+  type         AssessmentType
+  score        Decimal?       @db.Decimal(6, 2)
+  maxScore     Decimal        @default(100) @db.Decimal(6, 2)
+  takenAt      DateTime?
+  note         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+
+  @@index([courseId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([type])
+  @@index([takenAt])
+  @@index([courseId, type])
+  @@index([studentId, type])
+  @@index([enrollmentId, type])
+  @@index([enrollmentId, takenAt])
+}
+
+model Skill {
+  id          String   @id @default(uuid())
+  courseId    String
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course   Course                 @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  progress StudentSkillProgress[]
+
+  @@unique([courseId, name])
+  @@index([courseId])
+  @@index([sortOrder])
+}
+
+model StudentSkillProgress {
+  id               String     @id @default(uuid())
+  skillId          String
+  studentId        String
+  enrollmentId     String
+  updatedByTutorId String?
+  level            SkillLevel
+  note             String?
+  evaluatedAt      DateTime   @default(now())
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  skill          Skill          @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  student        StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment     Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  updatedByTutor TutorProfile?  @relation("SkillProgressUpdatedBy", fields: [updatedByTutorId], references: [id], onDelete: SetNull)
+
+  @@unique([skillId, studentId])
+  @@index([skillId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([updatedByTutorId])
+  @@index([level])
+  @@index([enrollmentId, level])
+}
+
+model ProgressNote {
+  id                   String   @id @default(uuid())
+  courseId             String
+  studentId            String
+  enrollmentId         String
+  tutorId              String
+  note                 String
+  strengths            String?
+  weaknesses           String?
+  recommendedNextSteps String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  course     Course         @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment     @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  tutor      TutorProfile   @relation(fields: [tutorId], references: [id], onDelete: Restrict)
+
+  @@index([courseId])
+  @@index([studentId])
+  @@index([enrollmentId])
+  @@index([tutorId])
+  @@index([createdAt])
+  @@index([courseId, studentId])
+  @@index([enrollmentId, createdAt])
+  @@index([studentId, createdAt])
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  tutorId   String
+  courseId  String?
+  studentId String?
+  authorId  String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tutor   TutorProfile    @relation(fields: [tutorId], references: [id], onDelete: Restrict)
+  course  Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  student StudentProfile? @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  author  User            @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([tutorId])
+  @@index([courseId])
+  @@index([studentId])
+  @@index([authorId])
+  @@index([rating])
+  @@index([createdAt])
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  payerId       String
+  courseId      String
+  enrollmentId  String?
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amountCents   Int
+  currency      String        @default("THB")
+  referenceCode String?       @unique
+  proofUrl      String?
+  paidAt        DateTime?
+  note          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  payer      User        @relation("PaymentPayer", fields: [payerId], references: [id], onDelete: Restrict)
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  enrollment Enrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+
+  @@index([payerId])
+  @@index([courseId])
+  @@index([enrollmentId])
+  @@index([method])
+  @@index([status])
+  @@index([paidAt])
+  @@index([payerId, status])
+  @@index([courseId, status])
+}
