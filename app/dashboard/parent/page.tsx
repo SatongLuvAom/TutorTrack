@@ -83,6 +83,41 @@ export default async function ParentDashboardPage() {
                       Open enrollments
                     </Link>
                   </Button>
+                  <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                    <Link
+                      href={`/dashboard/parent/children/${child.studentId}/schedule`}
+                    >
+                      Schedule
+                    </Link>
+                  </Button>
+                  <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                    <Link
+                      href={`/dashboard/parent/children/${child.studentId}/attendance`}
+                    >
+                      Attendance
+                    </Link>
+                  </Button>
+                  <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                    <Link
+                      href={`/dashboard/parent/children/${child.studentId}/assignments`}
+                    >
+                      Assignments
+                    </Link>
+                  </Button>
+                  <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                    <Link
+                      href={`/dashboard/parent/children/${child.studentId}/assessments`}
+                    >
+                      Assessments
+                    </Link>
+                  </Button>
+                  <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                    <Link
+                      href={`/dashboard/parent/children/${child.studentId}/skills`}
+                    >
+                      Skills
+                    </Link>
+                  </Button>
                 </article>
               ))}
             </div>

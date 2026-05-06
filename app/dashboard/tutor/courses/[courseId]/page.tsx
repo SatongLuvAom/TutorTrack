@@ -157,12 +157,44 @@ export default async function TutorCourseDetailPage({
               />
               {course.stats.scheduledSessionCount}
             </p>
+            <Button asChild className="mt-4 w-full" variant="outline">
+              <Link href={`/dashboard/tutor/courses/${course.id}/sessions`}>
+                Manage sessions
+              </Link>
+            </Button>
           </div>
           <div className="tt-card p-5">
             <p className="text-sm text-muted-foreground">Assignments</p>
             <p className="mt-2 text-3xl font-semibold">
               {course.stats.assignmentCount}
             </p>
+            <Button asChild className="mt-4 w-full" variant="outline">
+              <Link href={`/dashboard/tutor/courses/${course.id}/assignments`}>
+                Manage assignments
+              </Link>
+            </Button>
+          </div>
+          <div className="tt-card p-5">
+            <p className="text-sm text-muted-foreground">Assessments</p>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">
+              Record quiz and test scores for ACTIVE students.
+            </p>
+            <Button asChild className="mt-4 w-full" variant="outline">
+              <Link href={`/dashboard/tutor/courses/${course.id}/assessments`}>
+                Manage assessments
+              </Link>
+            </Button>
+          </div>
+          <div className="tt-card p-5">
+            <p className="text-sm text-muted-foreground">Skill progress</p>
+            <p className="mt-2 text-sm leading-7 text-muted-foreground">
+              Update course skill levels and tutor notes.
+            </p>
+            <Button asChild className="mt-4 w-full" variant="outline">
+              <Link href={`/dashboard/tutor/courses/${course.id}/skills`}>
+                Manage skills
+              </Link>
+            </Button>
           </div>
         </aside>
       </section>

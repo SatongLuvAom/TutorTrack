@@ -40,6 +40,19 @@ type SubmissionAccess = {
   isEnrollmentConsistent: boolean;
 };
 
+type AssessmentAccess = {
+  studentId: string;
+  courseId: string;
+  tutorId: string;
+  isEnrollmentConsistent: boolean;
+  isActiveEnrollment: boolean;
+};
+
+type SkillAccess = {
+  courseId: string;
+  tutorId: string;
+};
+
 type PaymentAccess = {
   payerId: string;
   courseId: string;
@@ -56,7 +69,16 @@ export type PermissionStore = {
     studentId: string,
     courseId?: string,
   ): Promise<boolean>;
+  hasTutorActiveStudentEnrollment(
+    tutorId: string,
+    studentId: string,
+    courseId?: string,
+  ): Promise<boolean>;
   hasStudentCourseEnrollment(
+    studentId: string,
+    courseId: string,
+  ): Promise<boolean>;
+  hasStudentActiveCourseEnrollment(
     studentId: string,
     courseId: string,
   ): Promise<boolean>;
@@ -68,10 +90,16 @@ export type PermissionStore = {
     parentId: string,
     courseId: string,
   ): Promise<boolean>;
+  hasParentActiveCourseEnrollment(
+    parentId: string,
+    courseId: string,
+  ): Promise<boolean>;
   getEnrollmentAccess(enrollmentId: string): Promise<EnrollmentAccess | null>;
   getSessionAccess(sessionId: string): Promise<CourseOwnerAccess | null>;
   getAssignmentAccess(assignmentId: string): Promise<CourseOwnerAccess | null>;
   getSubmissionAccess(submissionId: string): Promise<SubmissionAccess | null>;
+  getAssessmentAccess(assessmentId: string): Promise<AssessmentAccess | null>;
+  getSkillAccess(skillId: string): Promise<SkillAccess | null>;
   getPaymentAccess(paymentId: string): Promise<PaymentAccess | null>;
 };
 
@@ -109,6 +137,19 @@ export const prismaPermissionStore: PermissionStore = {
     return count > 0;
   },
 
+  async hasTutorActiveStudentEnrollment(tutorId, studentId, courseId) {
+    const count = await getDb().enrollment.count({
+      where: {
+        studentId,
+        ...(courseId ? { courseId } : {}),
+        status: EnrollmentStatus.ACTIVE,
+        course: { tutorId },
+      },
+    });
+
+    return count > 0;
+  },
+
   async hasStudentCourseEnrollment(studentId, courseId) {
     const count = await getDb().enrollment.count({
       where: {
@@ -121,9 +162,41 @@ export const prismaPermissionStore: PermissionStore = {
     return count > 0;
   },
 
+  async hasStudentActiveCourseEnrollment(studentId, courseId) {
+    const count = await getDb().enrollment.count({
+      where: {
+        studentId,
+        courseId,
+        status: EnrollmentStatus.ACTIVE,
+      },
+    });
+
+    return count > 0;
+  },
+
   async hasActiveParentStudentLink(parentId, studentId) {
     const count = await getDb().parentStudentLink.count({
       where: { parentId, studentId, isActive: true, endedAt: null },
+    });
+
+    return count > 0;
+  },
+
+  async hasParentActiveCourseEnrollment(parentId, courseId) {
+    const count = await getDb().enrollment.count({
+      where: {
+        courseId,
+        status: EnrollmentStatus.ACTIVE,
+        student: {
+          parentLinks: {
+            some: {
+              parentId,
+              isActive: true,
+              endedAt: null,
+            },
+          },
+        },
+      },
     });
 
     return count > 0;
@@ -238,6 +311,51 @@ export const prismaPermissionStore: PermissionStore = {
       isEnrollmentConsistent:
         submission.enrollment.studentId === submission.studentId &&
         submission.enrollment.courseId === submission.assignment.courseId,
+    };
+  },
+
+  async getAssessmentAccess(assessmentId) {
+    const assessment = await getDb().assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        studentId: true,
+        courseId: true,
+        enrollment: { select: { studentId: true, courseId: true, status: true } },
+        course: { select: { tutorId: true } },
+      },
+    });
+
+    if (!assessment) {
+      return null;
+    }
+
+    return {
+      studentId: assessment.studentId,
+      courseId: assessment.courseId,
+      tutorId: assessment.course.tutorId,
+      isEnrollmentConsistent:
+        assessment.enrollment.studentId === assessment.studentId &&
+        assessment.enrollment.courseId === assessment.courseId,
+      isActiveEnrollment: assessment.enrollment.status === EnrollmentStatus.ACTIVE,
+    };
+  },
+
+  async getSkillAccess(skillId) {
+    const skill = await getDb().skill.findUnique({
+      where: { id: skillId },
+      select: {
+        courseId: true,
+        course: { select: { tutorId: true } },
+      },
+    });
+
+    if (!skill) {
+      return null;
+    }
+
+    return {
+      courseId: skill.courseId,
+      tutorId: skill.course.tutorId,
     };
   },
 
@@ -380,7 +498,7 @@ export async function canViewStudentProgress(
     }
 
     return courseId
-      ? store.hasStudentCourseEnrollment(studentId, courseId)
+      ? store.hasStudentActiveCourseEnrollment(studentId, courseId)
       : true;
   }
 
@@ -395,12 +513,12 @@ export async function canViewStudentProgress(
     }
 
     return courseId
-      ? store.hasStudentCourseEnrollment(studentId, courseId)
+      ? store.hasStudentActiveCourseEnrollment(studentId, courseId)
       : true;
   }
 
   if (isTutor(user) && hasTutorProfile(user)) {
-    return store.hasTutorStudentEnrollment(
+    return store.hasTutorActiveStudentEnrollment(
       user.tutorProfileId,
       studentId,
       courseId,
@@ -428,7 +546,7 @@ export async function canEditStudentProgress(
     return false;
   }
 
-  return store.hasTutorStudentEnrollment(
+  return store.hasTutorActiveStudentEnrollment(
     user.tutorProfileId,
     studentId,
     courseId,
@@ -681,6 +799,363 @@ export async function canViewParentChild(
   return store.hasActiveParentStudentLink(user.parentProfileId, studentId);
 }
 
+export async function canCreateSession(
+  user: PermissionUser | null | undefined,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const course = await store.getCourse(courseId);
+
+  if (!course || course.status !== CourseStatus.PUBLISHED) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  return (
+    isTutor(user) &&
+    hasTutorProfile(user) &&
+    course.tutorId === user.tutorProfileId
+  );
+}
+
+export async function canViewSession(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const session = await store.getSessionAccess(sessionId);
+
+  if (!session) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isTutor(user) && hasTutorProfile(user)) {
+    return session.tutorId === user.tutorProfileId;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return store.hasStudentCourseEnrollment(
+      user.studentProfileId,
+      session.courseId,
+    );
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasParentCourseEnrollment(
+      user.parentProfileId,
+      session.courseId,
+    );
+  }
+
+  return false;
+}
+
+async function canTutorOrAdminManageSession(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const session = await store.getSessionAccess(sessionId);
+
+  if (!session) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  return (
+    isTutor(user) &&
+    hasTutorProfile(user) &&
+    session.tutorId === user.tutorProfileId
+  );
+}
+
+export function canEditSession(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canTutorOrAdminManageSession(user, sessionId, store);
+}
+
+export function canCancelSession(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canTutorOrAdminManageSession(user, sessionId, store);
+}
+
+export function canCompleteSession(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canTutorOrAdminManageSession(user, sessionId, store);
+}
+
+export function canViewSessionAttendance(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canTutorOrAdminManageSession(user, sessionId, store);
+}
+
+export function canMarkAttendance(
+  user: PermissionUser | null | undefined,
+  sessionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canTutorOrAdminManageSession(user, sessionId, store);
+}
+
+export async function canViewStudentSchedule(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return user.studentProfileId === studentId;
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasActiveParentStudentLink(user.parentProfileId, studentId);
+  }
+
+  return false;
+}
+
+export function canViewStudentAttendance(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canViewStudentSchedule(user, studentId, store);
+}
+
+export async function canCreateAssignment(
+  user: PermissionUser | null | undefined,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (!isTutor(user) || !hasTutorProfile(user)) {
+    return false;
+  }
+
+  return store.hasTutorCourse(user.tutorProfileId, courseId);
+}
+
+export async function canViewAssignment(
+  user: PermissionUser | null | undefined,
+  assignmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const assignment = await store.getAssignmentAccess(assignmentId);
+
+  if (!assignment) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isTutor(user) && hasTutorProfile(user)) {
+    return assignment.tutorId === user.tutorProfileId;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return store.hasStudentActiveCourseEnrollment(
+      user.studentProfileId,
+      assignment.courseId,
+    );
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasParentActiveCourseEnrollment(
+      user.parentProfileId,
+      assignment.courseId,
+    );
+  }
+
+  return false;
+}
+
+export async function canEditAssignment(
+  user: PermissionUser | null | undefined,
+  assignmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (!isTutor(user) || !hasTutorProfile(user)) {
+    return false;
+  }
+
+  const assignment = await store.getAssignmentAccess(assignmentId);
+  return assignment?.tutorId === user.tutorProfileId;
+}
+
+export function canViewAssignmentSubmissions(
+  user: PermissionUser | null | undefined,
+  assignmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canEditAssignment(user, assignmentId, store);
+}
+
+export async function canSubmitAssignment(
+  user: PermissionUser | null | undefined,
+  assignmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!isStudent(user) || !hasStudentProfile(user)) {
+    return false;
+  }
+
+  const assignment = await store.getAssignmentAccess(assignmentId);
+
+  if (!assignment) {
+    return false;
+  }
+
+  return store.hasStudentActiveCourseEnrollment(
+    user.studentProfileId,
+    assignment.courseId,
+  );
+}
+
+export async function canViewSubmission(
+  user: PermissionUser | null | undefined,
+  submissionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const submission = await store.getSubmissionAccess(submissionId);
+
+  if (!submission || !submission.isEnrollmentConsistent) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isTutor(user) && hasTutorProfile(user)) {
+    return submission.tutorId === user.tutorProfileId;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return submission.studentId === user.studentProfileId;
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasActiveParentStudentLink(
+      user.parentProfileId,
+      submission.studentId,
+    );
+  }
+
+  return false;
+}
+
+export async function canEditSubmission(
+  user: PermissionUser | null | undefined,
+  submissionId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!isStudent(user) || !hasStudentProfile(user)) {
+    return false;
+  }
+
+  const submission = await store.getSubmissionAccess(submissionId);
+
+  if (!submission || !submission.isEnrollmentConsistent) {
+    return false;
+  }
+
+  return submission.studentId === user.studentProfileId;
+}
+
+export async function canViewStudentAssignments(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return user.studentProfileId === studentId;
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasActiveParentStudentLink(user.parentProfileId, studentId);
+  }
+
+  if (isTutor(user) && hasTutorProfile(user)) {
+    return store.hasTutorStudentEnrollment(user.tutorProfileId, studentId);
+  }
+
+  return false;
+}
+
 export async function canManageSession(
   user: PermissionUser | null | undefined,
   sessionId: string,
@@ -707,20 +1182,7 @@ export async function canManageAssignment(
   assignmentId: string,
   store: PermissionStore = prismaPermissionStore,
 ): Promise<boolean> {
-  if (!user) {
-    return false;
-  }
-
-  if (isAdmin(user)) {
-    return true;
-  }
-
-  if (!isTutor(user) || !hasTutorProfile(user)) {
-    return false;
-  }
-
-  const assignment = await store.getAssignmentAccess(assignmentId);
-  return assignment?.tutorId === user.tutorProfileId;
+  return canEditAssignment(user, assignmentId, store);
 }
 
 export async function canGradeSubmission(
@@ -745,6 +1207,192 @@ export async function canGradeSubmission(
     submission?.tutorId === user.tutorProfileId &&
     submission.isEnrollmentConsistent
   );
+}
+
+export function canCreateAssessment(
+  user: PermissionUser | null | undefined,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canEditCourse(user, courseId, store);
+}
+
+export async function canViewAssessment(
+  user: PermissionUser | null | undefined,
+  assessmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const assessment = await store.getAssessmentAccess(assessmentId);
+
+  if (!assessment || !assessment.isEnrollmentConsistent) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isTutor(user) && hasTutorProfile(user)) {
+    return assessment.tutorId === user.tutorProfileId;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return (
+      assessment.isActiveEnrollment &&
+      assessment.studentId === user.studentProfileId
+    );
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return (
+      assessment.isActiveEnrollment &&
+      (await store.hasActiveParentStudentLink(
+        user.parentProfileId,
+        assessment.studentId,
+      ))
+    );
+  }
+
+  return false;
+}
+
+export async function canEditAssessment(
+  user: PermissionUser | null | undefined,
+  assessmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (!isTutor(user) || !hasTutorProfile(user)) {
+    return false;
+  }
+
+  const assessment = await store.getAssessmentAccess(assessmentId);
+  return assessment?.tutorId === user.tutorProfileId;
+}
+
+export function canRecordAssessmentScore(
+  user: PermissionUser | null | undefined,
+  assessmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canEditAssessment(user, assessmentId, store);
+}
+
+export function canViewStudentAssessments(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canViewStudentProgress(user, studentId, undefined, store);
+}
+
+export function canViewStudentSkillProgress(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  courseId?: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canViewStudentProgress(user, studentId, courseId, store);
+}
+
+export function canEditStudentSkillProgress(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canEditStudentProgress(user, studentId, courseId, store);
+}
+
+export function canCreateProgressNote(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (isAdmin(user)) {
+    return store.hasStudentActiveCourseEnrollment(studentId, courseId);
+  }
+
+  if (!isTutor(user)) {
+    return Promise.resolve(false);
+  }
+
+  return canEditStudentProgress(user, studentId, courseId, store);
+}
+
+export function canViewProgressReport(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canViewStudentProgress(user, studentId, courseId, store);
+}
+
+export async function canViewCourseSkillProgress(
+  user: PermissionUser | null | undefined,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isTutor(user) && hasTutorProfile(user)) {
+    return store.hasTutorCourse(user.tutorProfileId, courseId);
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return store.hasStudentActiveCourseEnrollment(
+      user.studentProfileId,
+      courseId,
+    );
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasParentActiveCourseEnrollment(
+      user.parentProfileId,
+      courseId,
+    );
+  }
+
+  return false;
+}
+
+export async function canManageSkillProgress(
+  user: PermissionUser | null | undefined,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (!isTutor(user) || !hasTutorProfile(user)) {
+    return false;
+  }
+
+  return store.hasTutorCourse(user.tutorProfileId, courseId);
 }
 
 export async function canViewPayment(

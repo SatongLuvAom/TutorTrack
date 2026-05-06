@@ -1,5 +1,13 @@
 import Link from "next/link";
-import { BookOpen, LockKeyhole, LogOut, UserCircle } from "lucide-react";
+import {
+  BookOpen,
+  ChartNoAxesColumnIncreasing,
+  ClipboardList,
+  FileText,
+  LockKeyhole,
+  LogOut,
+  UserCircle,
+} from "lucide-react";
 import type { CurrentUser } from "@/lib/current-user";
 import { UserRole } from "@/lib/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
@@ -19,7 +27,8 @@ export function DashboardShell({ title, user }: DashboardShellProps) {
               <p className="tt-kicker">TutorTrack dashboard</p>
               <h1 className="tt-heading mt-2 text-3xl">{title}</h1>
               <p className="mt-2 max-w-xl text-sm leading-7 text-muted-foreground">
-                พื้นที่ส่วนตัวสำหรับดูข้อมูลตามบทบาท โดยยังบังคับสิทธิ์เข้าถึงจากฝั่ง server
+                Private workspace with server-side role checks for every
+                protected dashboard route.
               </p>
             </div>
             <form action="/api/auth/logout" method="post">
@@ -49,8 +58,12 @@ export function DashboardShell({ title, user }: DashboardShellProps) {
 
           <div className="tt-card p-5">
             <LockKeyhole aria-hidden="true" className="size-5 text-emerald-600" />
-            <p className="mt-4 text-sm font-medium text-muted-foreground">Access</p>
-            <p className="mt-2 text-lg font-semibold text-emerald-700">Protected</p>
+            <p className="mt-4 text-sm font-medium text-muted-foreground">
+              Access
+            </p>
+            <p className="mt-2 text-lg font-semibold text-emerald-700">
+              Protected
+            </p>
           </div>
         </div>
 
@@ -87,6 +100,56 @@ export function DashboardShell({ title, user }: DashboardShellProps) {
                 Open enrollments
               </Link>
             </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link
+                href={
+                  user.role === UserRole.TUTOR
+                    ? "/dashboard/tutor/sessions"
+                    : "/dashboard/admin/sessions"
+                }
+              >
+                Open sessions
+              </Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link
+                href={
+                  user.role === UserRole.TUTOR
+                    ? "/dashboard/tutor/assignments"
+                    : "/dashboard/admin/assignments"
+                }
+              >
+                <ClipboardList aria-hidden="true" />
+                Open assignments
+              </Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link
+                href={
+                  user.role === UserRole.TUTOR
+                    ? "/dashboard/tutor/assessments"
+                    : "/dashboard/admin/assessments"
+                }
+              >
+                <ChartNoAxesColumnIncreasing aria-hidden="true" />
+                Open assessments
+              </Link>
+            </Button>
+            {user.role === UserRole.ADMIN ? (
+              <>
+                <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                  <Link href="/dashboard/admin/submissions">
+                    <FileText aria-hidden="true" />
+                    Open submissions
+                  </Link>
+                </Button>
+                <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                  <Link href="/dashboard/admin/skill-progress">
+                    Open skills
+                  </Link>
+                </Button>
+              </>
+            ) : null}
           </div>
         ) : null}
 
@@ -97,10 +160,30 @@ export function DashboardShell({ title, user }: DashboardShellProps) {
               Learning
             </p>
             <p className="mt-2 text-sm leading-7 text-muted-foreground">
-              Track your course enrollment requests and active classes.
+              Track your course enrollment requests, active classes, and
+              homework.
             </p>
             <Button asChild className="mt-4" variant="outline">
               <Link href="/dashboard/student/enrollments">Open enrollments</Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link href="/dashboard/student/schedule">Open schedule</Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link href="/dashboard/student/attendance">Open attendance</Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link href="/dashboard/student/assignments">
+                Open assignments
+              </Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link href="/dashboard/student/assessments">
+                Open assessments
+              </Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link href="/dashboard/student/skills">Open skills</Link>
             </Button>
           </div>
         ) : null}

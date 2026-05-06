@@ -1,6 +1,6 @@
 # TutorTrack
 
-TutorTrack is a tutor marketplace and student progress tracking platform. This repository is currently at Phase 7: enrollment foundation.
+TutorTrack is a tutor marketplace and student progress tracking platform. This repository is currently at Phase 11: deterministic progress report engine.
 
 ## Stack
 
@@ -206,7 +206,7 @@ Course permissions:
 - Students, parents, and public visitors cannot access course management routes.
 - Public course pages still show only `PUBLISHED` courses from approved tutors.
 
-The `Course` schema includes `level`, `capacity` for max students, and `totalSessions` for planned sessions. Lesson session scheduling, assignments, payments, and progress reports are intentionally left for later phases.
+The `Course` schema includes `level`, `capacity` for max students, and `totalSessions` for planned sessions. Lesson session scheduling and attendance are implemented in Phase 8. Assignments, payment gateway processing, and progress reports are intentionally left for later phases.
 
 Verify course management changes with:
 
@@ -260,6 +260,230 @@ npm run test
 npm run build
 ```
 
+## Sessions and Attendance
+
+Phase 8 adds lesson session scheduling and attendance tracking:
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard/tutor/sessions` | Tutor-owned session list with course, status, and search filters. |
+| `/dashboard/tutor/courses/[courseId]/sessions` | Sessions for one tutor-owned course. |
+| `/dashboard/tutor/courses/[courseId]/sessions/new` | Create a new scheduled session for a tutor-owned published course. |
+| `/dashboard/tutor/sessions/[sessionId]` | Tutor session detail with attendance marking for active enrolled students. |
+| `/dashboard/tutor/sessions/[sessionId]/edit` | Edit a tutor-owned scheduled session. |
+| `/dashboard/student/schedule` | Student-only schedule from own active enrollments. |
+| `/dashboard/student/attendance` | Student-only attendance history and summary. |
+| `/dashboard/parent/children/[studentId]/schedule` | Parent view for an active linked child's schedule. |
+| `/dashboard/parent/children/[studentId]/attendance` | Parent view for an active linked child's attendance history. |
+| `/dashboard/admin/sessions` | Admin view of all sessions and attendance records. |
+
+Session status lifecycle:
+
+- New sessions start as `SCHEDULED`.
+- Tutors can create sessions only for their own `PUBLISHED` courses.
+- Tutors can edit only their own `SCHEDULED` sessions.
+- `SCHEDULED` sessions can become `COMPLETED` or `CANCELLED`.
+- `COMPLETED` and `CANCELLED` are final states for the MVP.
+- Tutors cannot create sessions for `DRAFT` or `ARCHIVED` courses.
+
+Attendance rules:
+
+- Tutors can mark attendance only for sessions in their own courses.
+- Attendance can be marked only for students with `ACTIVE` enrollment in that course.
+- `PENDING`, `CANCELLED`, and `COMPLETED` enrollments are not markable.
+- Attendance uses upsert on `(sessionId, studentId)` to prevent duplicate records.
+- Attendance statuses are `PRESENT`, `ABSENT`, `LATE`, and `EXCUSED`.
+- Cancelled sessions are locked for attendance marking.
+
+Access rules:
+
+- Admins can view and manage all sessions and view all attendance records.
+- Tutors can manage only their own sessions and attendance for their own courses.
+- Students can view only their own schedule and attendance history.
+- Parents can view schedule and attendance only for active linked children.
+- Public users cannot access sessions or attendance dashboard routes.
+
+Phase 8 still does not implement assignments, submissions, assessments, progress reports, or payment gateway processing.
+
+Verify sessions and attendance changes with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+## Assignments and Submissions
+
+Phase 9 adds homework assignment, student submission, tutor grading, parent tracking, and admin inspection flows:
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard/tutor/assignments` | Tutor overview across assignments in own courses, with course/search/grading filters. |
+| `/dashboard/tutor/courses/[courseId]/assignments` | Assignments for one tutor-owned course. |
+| `/dashboard/tutor/courses/[courseId]/assignments/new` | Create an assignment for a tutor-owned course. |
+| `/dashboard/tutor/assignments/[assignmentId]` | Assignment detail with active enrolled student roster and submission status. |
+| `/dashboard/tutor/assignments/[assignmentId]/edit` | Edit an assignment in a tutor-owned course. |
+| `/dashboard/tutor/submissions/[submissionId]/grade` | Grade a submission for a tutor-owned course assignment. |
+| `/dashboard/student/assignments` | Student view of assignments for ACTIVE enrollments only. |
+| `/dashboard/student/assignments/[assignmentId]` | Student assignment detail and submit/resubmit form. |
+| `/dashboard/parent/children/[studentId]/assignments` | Parent read-only assignment tracker for an active linked child. |
+| `/dashboard/parent/children/[studentId]/assignments/[assignmentId]` | Parent read-only assignment/submission detail. |
+| `/dashboard/admin/assignments` | Admin read-only assignment overview and counts. |
+| `/dashboard/admin/submissions` | Admin read-only submission inspection. |
+
+Assignment and submission rules:
+
+- Tutors can create and edit assignments only for courses they own.
+- Students can view and submit assignments only for courses where they have `ACTIVE` enrollment.
+- Parents can view assignments/submissions only for children linked through active `ParentStudentLink` records.
+- Parents cannot submit work in the MVP.
+- Tutors can grade submissions only for assignments in their own courses.
+- Admins can view all assignments and submissions, but admin grading is not implemented in this phase.
+- Each student has at most one submission per assignment via the schema unique key and service upsert.
+- Students may resubmit before grading; once `gradedAt` is set, student edits are blocked.
+- Late status is derived from `submittedAt > dueAt`.
+- Scores are validated server-side and cannot exceed the assignment `maxScore`.
+- Homework summary data is available through `getHomeworkSummaryForStudent` for future progress reports.
+
+The current Prisma schema does not include `Assignment.sessionId`, so Phase 9 assignments are linked to courses only. Session-linked assignments can be added later with a schema migration.
+
+Phase 9 still does not implement deterministic progress reports, AI features, or payment gateway processing.
+
+Verify assignments and submissions with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+## Assessments and Skill Progress
+
+Phase 10 adds tutor-managed assessments, student score viewing, parent score tracking, and course skill progress:
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard/tutor/assessments` | Tutor overview of assessment groups across own courses. |
+| `/dashboard/tutor/courses/[courseId]/assessments` | Assessments for one tutor-owned course. |
+| `/dashboard/tutor/courses/[courseId]/assessments/new` | Create an assessment for ACTIVE enrolled students in a tutor-owned course. |
+| `/dashboard/tutor/assessments/[assessmentId]` | Record or update scores for ACTIVE enrolled students. |
+| `/dashboard/tutor/assessments/[assessmentId]/edit` | Edit assessment metadata without deleting score history. |
+| `/dashboard/tutor/courses/[courseId]/skills` | Batch update course skill levels for ACTIVE enrolled students. |
+| `/dashboard/tutor/students/[studentId]/skills` | Tutor view of one active student skill matrix across own courses. |
+| `/dashboard/student/assessments` | Student read-only assessment results for ACTIVE enrollments. |
+| `/dashboard/student/skills` | Student read-only skill matrix. |
+| `/dashboard/parent/children/[studentId]/assessments` | Parent read-only assessment results for an active linked child. |
+| `/dashboard/parent/children/[studentId]/skills` | Parent read-only skill matrix for an active linked child. |
+| `/dashboard/admin/assessments` | Admin read-only assessment score inspection. |
+| `/dashboard/admin/skill-progress` | Admin read-only skill progress inspection. |
+
+Assessment and skill rules:
+
+- Tutors can create/edit assessments only for their own courses.
+- The current Prisma schema stores `Assessment` as one row per student score, so TutorTrack groups assessment rows by course, title, type, date, and max score. Creating an assessment creates score rows for current ACTIVE enrollments.
+- Tutors can record assessment scores only for ACTIVE enrolled students in their own courses.
+- Scores are validated server-side and cannot exceed `maxScore`.
+- Tutors can update skill progress only for ACTIVE enrolled students in their own courses.
+- Students and parents can view skill matrices and assessment results but cannot edit them.
+- Parents can view only children connected through active `ParentStudentLink` records.
+- Admin pages are read-only for this phase.
+
+Skill level score mapping for future deterministic progress reports:
+
+| Skill level | Score |
+| --- | ---: |
+| `NEEDS_WORK` | 25 |
+| `BASIC` | 50 |
+| `GOOD` | 75 |
+| `EXCELLENT` | 100 |
+
+Helpers now exist for future reports:
+
+- `getAssessmentAverageForStudent(studentId, courseId?)`
+- `getSkillAverageForStudent(studentId, courseId?)`
+- `mapSkillLevelToScore(level)`
+
+Phase 10 still does not implement the final progress report engine/UI, AI features, payment gateway processing, or a separate assessment-template schema.
+
+Verify assessments and skill progress with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+## Progress Report Engine
+
+Phase 11 adds the deterministic progress report engine and progress note APIs.
+
+Progress report routes:
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/api/progress/report?studentId=...&courseId=...` | `GET` | Return a protected deterministic progress report for one student/course. |
+| `/api/progress/notes?studentId=...&courseId=...` | `GET` | Return protected tutor progress notes for one student/course. |
+| `/api/progress/notes` | `POST` | Create a tutor progress note for an ACTIVE enrolled student in the tutor's own course. |
+
+Progress formula:
+
+```text
+progressScore =
+(attendanceRate * 0.20) +
+(homeworkCompletionRate * 0.25) +
+(assessmentAverage * 0.35) +
+(skillAverage * 0.15) +
+(behaviorScore * 0.05)
+```
+
+Missing attendance, homework, assessment, or skill data returns `null` for that component and contributes `0` to the weighted score. `dataCompleteness` explains which data sources are present.
+
+Data completeness:
+
+- Attendance data = 25%
+- Homework data = 25%
+- Assessment score data = 25%
+- Skill progress data = 25%
+- Tutor note presence is reported separately as `hasTutorNote`
+
+Skill level mapping:
+
+| Skill level | Score |
+| --- | ---: |
+| `NEEDS_WORK` | 25 |
+| `BASIC` | 50 |
+| `GOOD` | 75 |
+| `EXCELLENT` | 100 |
+
+Behavior score placeholder:
+
+- Latest tutor progress note exists: `80`
+- No tutor progress note exists: `70`
+- This is deterministic placeholder logic only. It does not use AI and does not infer sensitive behavior.
+
+Progress report permissions:
+
+- Admins can view all progress reports and notes.
+- Tutors can view progress and create notes only for ACTIVE enrolled students in their own courses.
+- Students can view only their own active-course progress.
+- Parents can view only active linked children through `ParentStudentLink`.
+- Public users cannot access progress report or progress note APIs.
+
+Phase 11 intentionally does not implement polished report UI, PDF export, AI recommendations, or payment gateway processing.
+
+Verify progress reports with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
 ## Project Structure
 
 - `app/` routes, pages, layouts, and route-level UI states.
@@ -270,6 +494,6 @@ npm run build
 - `types/` shared TypeScript types.
 - `tests/` Vitest tests.
 
-## Phase 7 Scope
+## Phase 11 Scope
 
-This phase implements enrollment only. Payment gateway processing, lesson session scheduling, attendance, assignments, AI features, and progress reports should be added in later phases with server-side authorization and tests.
+This phase implements the deterministic progress report engine, progress note service, protected progress APIs, and tests. Polished progress report UI, PDF export, AI recommendations, and payment gateway processing should be added in later phases with server-side authorization and tests.
