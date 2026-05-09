@@ -148,6 +148,11 @@ export function DashboardShell({ title, user }: DashboardShellProps) {
                     Open skills
                   </Link>
                 </Button>
+                <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                  <Link href="/dashboard/admin/progress">
+                    Open progress
+                  </Link>
+                </Button>
               </>
             ) : null}
           </div>
@@ -184,6 +189,9 @@ export function DashboardShell({ title, user }: DashboardShellProps) {
             </Button>
             <Button asChild className="mt-4 sm:ml-2" variant="outline">
               <Link href="/dashboard/student/skills">Open skills</Link>
+            </Button>
+            <Button asChild className="mt-4 sm:ml-2" variant="outline">
+              <Link href="/dashboard/student/progress">Open progress</Link>
             </Button>
           </div>
         ) : null}

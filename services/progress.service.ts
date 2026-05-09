@@ -6,12 +6,18 @@ import {
 } from "@/lib/generated/prisma/client";
 import { getDb } from "@/lib/db";
 import {
-  canViewProgressReport,
+  canViewProgressReport as canViewProgressReportPermission,
   type PermissionUser,
 } from "@/lib/permissions";
+import {
+  progressOverviewFilterSchema,
+  type ProgressOverviewFilterInput,
+} from "@/lib/validators/progress";
+import { normalizeSearchText } from "@/services/marketplace-utils";
 import { mapSkillLevelToScore } from "@/services/skill-progress.service";
 
 type DecimalLike = { toString(): string } | number | string | null | undefined;
+type SearchParamsInput = Record<string, string | string[] | undefined>;
 
 export type ProgressAttendanceRecord = {
   status: AttendanceStatus;
@@ -153,8 +159,52 @@ export type ProgressReport = {
   generatedAt: Date;
 };
 
+export type ProgressOverviewFilters = {
+  search?: string;
+  studentId?: string;
+  tutorId?: string;
+  courseId?: string;
+  subjectId?: string;
+  minScore?: number;
+  maxScore?: number;
+  minCompleteness?: number;
+  maxCompleteness?: number;
+};
+
+export type ProgressOverviewItem = {
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  courseId: string;
+  courseTitle: string;
+  tutorName: string;
+  tutorEmail: string;
+  subjectName: string;
+  progressScore: number;
+  attendanceRate: number | null;
+  homeworkCompletionRate: number | null;
+  assessmentAverage: number | null;
+  skillAverage: number | null;
+  dataCompleteness: ProgressDataCompleteness;
+  latestRecommendation: string | null;
+  latestTutorNote: ProgressReportNote | null;
+  generatedAt: Date;
+};
+
+export type ProgressFilterOptions = {
+  students: Array<{ id: string; name: string; email: string }>;
+  tutors: Array<{ id: string; name: string; email: string }>;
+  courses: Array<{ id: string; title: string }>;
+  subjects: Array<{ id: string; name: string }>;
+};
+
 export type ProgressReportStore = {
   getPermissionUserById(userId: string): Promise<PermissionUser | null>;
+  canViewProgressReport(
+    user: PermissionUser | null,
+    studentId: string,
+    courseId: string,
+  ): Promise<boolean>;
   getProgressReportSnapshot(
     studentId: string,
     courseId: string,
@@ -179,6 +229,36 @@ const assessmentTypes = [
   AssessmentType.MOCK_EXAM,
   AssessmentType.POST_TEST,
 ] as const;
+
+type ProgressEnrollmentRow = {
+  studentId: string;
+  courseId: string;
+  student: {
+    displayName: string | null;
+    user: {
+      name: string;
+      email: string;
+    };
+  };
+  course: {
+    title: string;
+    subject: {
+      name: string;
+    };
+    tutor: {
+      user: {
+        name: string;
+        email: string;
+      };
+    };
+  };
+};
+
+function firstValue(value: string | string[] | undefined): string | undefined {
+  const selected = Array.isArray(value) ? value[0] : value;
+
+  return selected === "" ? undefined : selected;
+}
 
 function decimalToNumber(value: DecimalLike): number | null {
   return value === null || value === undefined ? null : Number(value);
@@ -400,10 +480,14 @@ function calculateDataCompleteness(input: {
 
 function deriveStrengths(
   skill: SkillProgressSummary,
+  assessments: AssessmentProgressSummary,
   latestTutorNote: ProgressReportNote | null,
 ): string[] {
   const strengths = [
     latestTutorNote?.strengths ?? null,
+    assessments.averagePercentage !== null && assessments.averagePercentage >= 85
+      ? `Assessment average is strong at ${assessments.averagePercentage}%.`
+      : null,
     ...skill.strongestSkills.map(
       (item) => `${item.skillName}: ${item.level}`,
     ),
@@ -414,10 +498,14 @@ function deriveStrengths(
 
 function deriveWeaknesses(
   skill: SkillProgressSummary,
+  assessments: AssessmentProgressSummary,
   latestTutorNote: ProgressReportNote | null,
 ): string[] {
   const weaknesses = [
     latestTutorNote?.weaknesses ?? null,
+    assessments.averagePercentage !== null && assessments.averagePercentage < 70
+      ? `Assessment average needs review at ${assessments.averagePercentage}%.`
+      : null,
     ...skill.weakestSkills.map((item) => `${item.skillName}: ${item.level}`),
   ].filter((value): value is string => Boolean(value));
 
@@ -508,8 +596,8 @@ export function calculateProgressReportFromSnapshot(
     homework,
     assessments,
     skillMatrix: skill.skillMatrix,
-    strengths: deriveStrengths(skill, snapshot.latestTutorNote),
-    weaknesses: deriveWeaknesses(skill, snapshot.latestTutorNote),
+    strengths: deriveStrengths(skill, assessments, snapshot.latestTutorNote),
+    weaknesses: deriveWeaknesses(skill, assessments, snapshot.latestTutorNote),
     latestTutorNote: snapshot.latestTutorNote,
     recommendedNextSteps: deriveRecommendedNextSteps({
       attendanceRate: attendance.attendanceRate,
@@ -525,6 +613,10 @@ export function calculateProgressReportFromSnapshot(
 }
 
 export const prismaProgressReportStore: ProgressReportStore = {
+  canViewProgressReport(user, studentId, courseId) {
+    return canViewProgressReportPermission(user, studentId, courseId);
+  },
+
   async getPermissionUserById(userId) {
     const user = await getDb().user.findUnique({
       where: { id: userId },
@@ -733,7 +825,7 @@ export async function calculateProgressReport(
 ): Promise<ProgressReport | null> {
   if (viewerUserId) {
     const viewer = await store.getPermissionUserById(viewerUserId);
-    if (!(await canViewProgressReport(viewer, studentId, courseId))) {
+    if (!(await store.canViewProgressReport(viewer, studentId, courseId))) {
       throw new ProgressReportError(
         "FORBIDDEN",
         "You do not have permission to view this progress report.",
@@ -744,4 +836,279 @@ export async function calculateProgressReport(
   const snapshot = await store.getProgressReportSnapshot(studentId, courseId);
 
   return snapshot ? calculateProgressReportFromSnapshot(snapshot) : null;
+}
+
+export function parseProgressOverviewFilters(
+  params: SearchParamsInput,
+): ProgressOverviewFilters {
+  const parsed: ProgressOverviewFilterInput = progressOverviewFilterSchema.parse(
+    {
+      search: firstValue(params.search),
+      studentId: firstValue(params.studentId) ?? firstValue(params.student),
+      tutorId: firstValue(params.tutorId) ?? firstValue(params.tutor),
+      courseId: firstValue(params.courseId) ?? firstValue(params.course),
+      subjectId: firstValue(params.subjectId) ?? firstValue(params.subject),
+      minScore: firstValue(params.minScore),
+      maxScore: firstValue(params.maxScore),
+      minCompleteness: firstValue(params.minCompleteness),
+      maxCompleteness: firstValue(params.maxCompleteness),
+    },
+  );
+
+  return {
+    search: normalizeSearchText(parsed.search),
+    studentId: normalizeSearchText(parsed.studentId),
+    tutorId: normalizeSearchText(parsed.tutorId),
+    courseId: normalizeSearchText(parsed.courseId),
+    subjectId: normalizeSearchText(parsed.subjectId),
+    minScore: parsed.minScore,
+    maxScore: parsed.maxScore,
+    minCompleteness: parsed.minCompleteness,
+    maxCompleteness: parsed.maxCompleteness,
+  };
+}
+
+function progressOverviewSelect() {
+  return {
+    studentId: true,
+    courseId: true,
+    student: {
+      select: {
+        displayName: true,
+        user: { select: { name: true, email: true } },
+      },
+    },
+    course: {
+      select: {
+        title: true,
+        subject: { select: { name: true } },
+        tutor: {
+          select: {
+            user: { select: { name: true, email: true } },
+          },
+        },
+      },
+    },
+  } as const;
+}
+
+async function toProgressOverviewItem(
+  row: ProgressEnrollmentRow,
+  viewerUserId: string,
+): Promise<ProgressOverviewItem | null> {
+  const report = await calculateProgressReport(
+    row.studentId,
+    row.courseId,
+    viewerUserId,
+  );
+
+  if (!report) {
+    return null;
+  }
+
+  return {
+    studentId: row.studentId,
+    studentName: row.student.displayName ?? row.student.user.name,
+    studentEmail: row.student.user.email,
+    courseId: row.courseId,
+    courseTitle: report.courseTitle,
+    tutorName: report.tutorName || row.course.tutor.user.name,
+    tutorEmail: row.course.tutor.user.email,
+    subjectName: report.subjectName || row.course.subject.name,
+    progressScore: report.progressScore,
+    attendanceRate: report.attendanceRate,
+    homeworkCompletionRate: report.homeworkCompletionRate,
+    assessmentAverage: report.assessmentAverage,
+    skillAverage: report.skillAverage,
+    dataCompleteness: report.dataCompleteness,
+    latestRecommendation: report.recommendedNextSteps[0] ?? null,
+    latestTutorNote: report.latestTutorNote,
+    generatedAt: report.generatedAt,
+  };
+}
+
+function applyCalculatedProgressFilters(
+  rows: ProgressOverviewItem[],
+  filters: ProgressOverviewFilters,
+): ProgressOverviewItem[] {
+  return rows.filter((row) => {
+    if (
+      filters.minScore !== undefined &&
+      row.progressScore < filters.minScore
+    ) {
+      return false;
+    }
+
+    if (
+      filters.maxScore !== undefined &&
+      row.progressScore > filters.maxScore
+    ) {
+      return false;
+    }
+
+    if (
+      filters.minCompleteness !== undefined &&
+      row.dataCompleteness.completenessScore < filters.minCompleteness
+    ) {
+      return false;
+    }
+
+    if (
+      filters.maxCompleteness !== undefined &&
+      row.dataCompleteness.completenessScore > filters.maxCompleteness
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+async function buildProgressOverviewItems(
+  rows: ProgressEnrollmentRow[],
+  viewerUserId: string,
+  filters: ProgressOverviewFilters = {},
+): Promise<ProgressOverviewItem[]> {
+  const reports = await Promise.all(
+    rows.map((row) => toProgressOverviewItem(row, viewerUserId)),
+  );
+
+  return applyCalculatedProgressFilters(
+    reports.filter((row): row is ProgressOverviewItem => Boolean(row)),
+    filters,
+  );
+}
+
+export async function getStudentProgressOverview(
+  studentUserId: string,
+): Promise<ProgressOverviewItem[]> {
+  const enrollments = await getDb().enrollment.findMany({
+    where: {
+      status: EnrollmentStatus.ACTIVE,
+      student: { userId: studentUserId },
+    },
+    orderBy: { enrolledAt: "desc" },
+    select: progressOverviewSelect(),
+  });
+
+  return buildProgressOverviewItems(enrollments, studentUserId);
+}
+
+export async function getParentChildProgressOverview(
+  parentUserId: string,
+  studentId: string,
+): Promise<ProgressOverviewItem[]> {
+  const enrollments = await getDb().enrollment.findMany({
+    where: {
+      studentId,
+      status: EnrollmentStatus.ACTIVE,
+      student: {
+        parentLinks: {
+          some: {
+            parent: { userId: parentUserId },
+            isActive: true,
+            endedAt: null,
+          },
+        },
+      },
+    },
+    orderBy: { enrolledAt: "desc" },
+    select: progressOverviewSelect(),
+  });
+
+  return buildProgressOverviewItems(enrollments, parentUserId);
+}
+
+export async function getTutorStudentProgressOverview(
+  tutorUserId: string,
+  studentId: string,
+): Promise<ProgressOverviewItem[]> {
+  const enrollments = await getDb().enrollment.findMany({
+    where: {
+      studentId,
+      status: EnrollmentStatus.ACTIVE,
+      course: { tutor: { userId: tutorUserId } },
+    },
+    orderBy: { enrolledAt: "desc" },
+    select: progressOverviewSelect(),
+  });
+
+  return buildProgressOverviewItems(enrollments, tutorUserId);
+}
+
+export async function getAdminProgressOverview(
+  viewerUserId: string,
+  filters: ProgressOverviewFilters = {},
+): Promise<ProgressOverviewItem[]> {
+  const enrollments = await getDb().enrollment.findMany({
+    where: {
+      status: EnrollmentStatus.ACTIVE,
+      ...(filters.studentId ? { studentId: filters.studentId } : {}),
+      ...(filters.courseId ? { courseId: filters.courseId } : {}),
+      ...(filters.search
+        ? {
+            OR: [
+              { student: { displayName: { contains: filters.search, mode: "insensitive" } } },
+              { student: { user: { name: { contains: filters.search, mode: "insensitive" } } } },
+              { student: { user: { email: { contains: filters.search, mode: "insensitive" } } } },
+              { course: { title: { contains: filters.search, mode: "insensitive" } } },
+              { course: { subject: { name: { contains: filters.search, mode: "insensitive" } } } },
+              { course: { tutor: { user: { name: { contains: filters.search, mode: "insensitive" } } } } },
+            ],
+          }
+        : {}),
+      course: {
+        ...(filters.tutorId ? { tutorId: filters.tutorId } : {}),
+        ...(filters.subjectId ? { subjectId: filters.subjectId } : {}),
+      },
+    },
+    orderBy: { enrolledAt: "desc" },
+    take: 100,
+    select: progressOverviewSelect(),
+  });
+
+  return buildProgressOverviewItems(enrollments, viewerUserId, filters);
+}
+
+export async function getAdminProgressFilterOptions(): Promise<ProgressFilterOptions> {
+  const [students, tutors, courses, subjects] = await Promise.all([
+    getDb().studentProfile.findMany({
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        displayName: true,
+        user: { select: { name: true, email: true } },
+      },
+    }),
+    getDb().tutorProfile.findMany({
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        user: { select: { name: true, email: true } },
+      },
+    }),
+    getDb().course.findMany({
+      orderBy: { title: "asc" },
+      select: { id: true, title: true },
+    }),
+    getDb().subject.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  return {
+    students: students.map((student) => ({
+      id: student.id,
+      name: student.displayName ?? student.user.name,
+      email: student.user.email,
+    })),
+    tutors: tutors.map((tutor) => ({
+      id: tutor.id,
+      name: tutor.user.name,
+      email: tutor.user.email,
+    })),
+    courses,
+    subjects,
+  };
 }

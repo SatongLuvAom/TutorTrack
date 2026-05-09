@@ -3,10 +3,14 @@ import {
   AssessmentType,
   AttendanceStatus,
   SkillLevel,
+  UserRole,
 } from "../lib/generated/prisma/enums";
 import {
   calculateProgressReportFromSnapshot,
+  calculateProgressReport,
   calculateWeightedProgressScore,
+  ProgressReportError,
+  type ProgressReportStore,
   type ProgressReportSnapshot,
 } from "../services/progress.service";
 import {
@@ -116,6 +120,33 @@ function makeProgressNoteStore(): ProgressNoteWriteStore & {
   const notes: ProgressNoteSummary[] = [];
 
   const store: ProgressNoteWriteStore & { count: () => number } = {
+    async getActorByUserId(userId) {
+      if (userId === "admin-user-1") {
+        return {
+          id: "admin-user-1",
+          role: UserRole.ADMIN,
+          tutorProfileId: null,
+        };
+      }
+
+      if (userId === "tutor-user-1") {
+        return {
+          id: "tutor-user-1",
+          role: UserRole.TUTOR,
+          tutorProfileId: "tutor-1",
+        };
+      }
+
+      if (userId === "tutor-user-2") {
+        return {
+          id: "tutor-user-2",
+          role: UserRole.TUTOR,
+          tutorProfileId: "tutor-2",
+        };
+      }
+
+      return null;
+    },
     async getTutorProfileByUserId(tutorUserId) {
       if (tutorUserId === "tutor-user-1") {
         return { id: "tutor-1" };
@@ -173,6 +204,32 @@ function makeProgressNoteStore(): ProgressNoteWriteStore & {
   };
 
   return store;
+}
+
+function makeProgressReportStore(input: {
+  canView: boolean;
+  viewerExists?: boolean;
+  snapshot?: ProgressReportSnapshot | null;
+}): ProgressReportStore {
+  return {
+    async getPermissionUserById(userId) {
+      if (input.viewerExists === false) {
+        return null;
+      }
+
+      return {
+        id: userId,
+        role: UserRole.STUDENT,
+        studentProfileId: "student-1",
+      };
+    },
+    async canViewProgressReport(user) {
+      return Boolean(user) && input.canView;
+    },
+    async getProgressReportSnapshot() {
+      return input.snapshot === undefined ? makeSnapshot() : input.snapshot;
+    },
+  };
 }
 
 describe("progress report calculation", () => {
@@ -264,6 +321,9 @@ describe("progress report calculation", () => {
     expect(report.recommendedNextSteps).toContain(
       "Focus practice on the weakest tracked skills.",
     );
+    expect(report.weaknesses).toContain(
+      "Assessment average needs review at 20%.",
+    );
   });
 
   it("calculates the weighted formula with missing components as zero", () => {
@@ -276,6 +336,36 @@ describe("progress report calculation", () => {
         behaviorScore: 70,
       }),
     ).toBe(55);
+  });
+
+  it("checks viewer permission before loading a protected report", async () => {
+    const store = makeProgressReportStore({ canView: false });
+
+    await expect(
+      calculateProgressReport("student-1", "course-1", "viewer-1", store),
+    ).rejects.toBeInstanceOf(ProgressReportError);
+  });
+
+  it("blocks missing viewers from protected progress reports", async () => {
+    const store = makeProgressReportStore({
+      canView: true,
+      viewerExists: false,
+    });
+
+    await expect(
+      calculateProgressReport("student-1", "course-1", "missing-viewer", store),
+    ).rejects.toBeInstanceOf(ProgressReportError);
+  });
+
+  it("returns a report when the viewer is authorized", async () => {
+    const store = makeProgressReportStore({ canView: true });
+
+    await expect(
+      calculateProgressReport("student-1", "course-1", "viewer-1", store),
+    ).resolves.toMatchObject({
+      studentId: "student-1",
+      courseId: "course-1",
+    });
   });
 });
 
@@ -303,6 +393,22 @@ describe("progress note service", () => {
     expect(store.count()).toBe(1);
   });
 
+  it("lets an admin create a progress note for an active enrollment", async () => {
+    const store = makeProgressNoteStore();
+
+    const note = await createProgressNote(
+      "admin-user-1",
+      "student-1",
+      "course-1",
+      { behaviorNote: "Administrative progress review" },
+      store,
+    );
+
+    expect(note.tutorId).toBe("tutor-1");
+    expect(note.note).toBe("Administrative progress review");
+    expect(store.count()).toBe(1);
+  });
+
   it("blocks tutors from creating progress notes for unrelated courses or inactive enrollments", async () => {
     const store = makeProgressNoteStore();
 
@@ -314,7 +420,7 @@ describe("progress note service", () => {
         { behaviorNote: "No access" },
         store,
       ),
-    ).rejects.toThrow("own courses");
+    ).rejects.toThrow("course tutor");
     await expect(
       createProgressNote(
         "tutor-user-1",

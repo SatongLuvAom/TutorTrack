@@ -147,7 +147,10 @@ export default async function TutorCourseStudentsPage({
               title="No enrolled students"
             />
           ) : (
-            <TutorCourseStudentsTable enrollments={enrollments} />
+            <TutorCourseStudentsTable
+              courseId={courseId}
+              enrollments={enrollments}
+            />
           )}
         </div>
       </section>

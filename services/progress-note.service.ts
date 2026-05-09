@@ -1,6 +1,7 @@
 import {
   EnrollmentStatus,
   Prisma,
+  UserRole,
   type PrismaClient,
 } from "@/lib/generated/prisma/client";
 import { getDb } from "@/lib/db";
@@ -28,6 +29,12 @@ type TutorRecord = {
   id: string;
 };
 
+type ProgressNoteActorRecord = {
+  id: string;
+  role: UserRole;
+  tutorProfileId: string | null;
+};
+
 type CourseRecord = {
   id: string;
   tutorId: string;
@@ -51,6 +58,7 @@ type ProgressNoteCreateData = {
 };
 
 export type ProgressNoteWriteStore = {
+  getActorByUserId(userId: string): Promise<ProgressNoteActorRecord | null>;
   getTutorProfileByUserId(tutorUserId: string): Promise<TutorRecord | null>;
   getCourse(courseId: string): Promise<CourseRecord | null>;
   getActiveEnrollment(
@@ -81,7 +89,7 @@ export class ProgressNoteManagementError extends Error {
 
 type PrismaProgressNoteClient = Pick<
   PrismaClient,
-  "course" | "enrollment" | "progressNote" | "tutorProfile"
+  "course" | "enrollment" | "progressNote" | "tutorProfile" | "user"
 >;
 
 const progressNoteSelect = {
@@ -148,6 +156,27 @@ function createPrismaProgressNoteStore(
   client: PrismaProgressNoteClient,
 ): ProgressNoteWriteStore {
   const store: ProgressNoteWriteStore = {
+    async getActorByUserId(userId) {
+      const user = await client.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+          tutorProfile: { select: { id: true } },
+        },
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      return {
+        id: user.id,
+        role: user.role,
+        tutorProfileId: user.tutorProfile?.id ?? null,
+      };
+    },
+
     async getTutorProfileByUserId(tutorUserId) {
       return client.tutorProfile.findUnique({
         where: { userId: tutorUserId },
@@ -188,6 +217,9 @@ function createPrismaProgressNoteStore(
 }
 
 const prismaProgressNoteWriteStore: ProgressNoteWriteStore = {
+  async getActorByUserId(userId) {
+    return createPrismaProgressNoteStore(getDb()).getActorByUserId(userId);
+  },
   async getTutorProfileByUserId(tutorUserId) {
     return createPrismaProgressNoteStore(getDb()).getTutorProfileByUserId(
       tutorUserId,
@@ -222,16 +254,18 @@ export async function createProgressNote(
   const parsed = progressNoteCreateSchema.parse(input);
 
   return store.runInTransaction(async (tx) => {
-    const [tutor, course, enrollment] = await Promise.all([
+    const [actor, legacyTutor, course, enrollment] = await Promise.all([
+      tx.getActorByUserId(tutorUserId),
       tx.getTutorProfileByUserId(tutorUserId),
       tx.getCourse(courseId),
       tx.getActiveEnrollment(studentId, courseId),
     ]);
+    const tutorProfileId = actor?.tutorProfileId ?? legacyTutor?.id ?? null;
 
-    if (!tutor) {
+    if (!actor && !legacyTutor) {
       throw new ProgressNoteManagementError(
         "TUTOR_PROFILE_REQUIRED",
-        "A tutor profile is required to create progress notes.",
+        "A tutor or admin account is required to create progress notes.",
       );
     }
 
@@ -239,10 +273,13 @@ export async function createProgressNote(
       throw new ProgressNoteManagementError("COURSE_NOT_FOUND", "Course not found.");
     }
 
-    if (course.tutorId !== tutor.id) {
+    if (
+      actor?.role !== UserRole.ADMIN &&
+      (!tutorProfileId || course.tutorId !== tutorProfileId)
+    ) {
       throw new ProgressNoteManagementError(
         "FORBIDDEN",
-        "Tutors can create progress notes only for their own courses.",
+        "Progress notes can be created only by admins or the course tutor.",
       );
     }
 
@@ -257,7 +294,7 @@ export async function createProgressNote(
       courseId,
       studentId,
       enrollmentId: enrollment.id,
-      tutorId: tutor.id,
+      tutorId: tutorProfileId ?? course.tutorId,
       note: buildRequiredNote(parsed),
       strengths: parsed.strengths || null,
       weaknesses: parsed.weaknesses || null,

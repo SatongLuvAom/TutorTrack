@@ -41,6 +41,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const report = await calculateProgressReport(
       parsed.data.studentId,
       parsed.data.courseId,
+      user.id,
     );
 
     if (!report) {

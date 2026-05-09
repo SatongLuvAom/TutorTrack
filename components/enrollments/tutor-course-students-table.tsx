@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { EnrollmentStatusBadge } from "@/components/enrollments/enrollment-status-badge";
+import { Button } from "@/components/ui/button";
 import type {
   TutorCourseEnrollmentItem,
   TutorEnrollmentItem,
@@ -6,6 +8,7 @@ import type {
 
 type TutorCourseStudentsTableProps = {
   enrollments: TutorCourseEnrollmentItem[];
+  courseId?: string;
 };
 
 type TutorEnrollmentsTableProps = {
@@ -31,6 +34,7 @@ function parentLabel(enrollment: TutorCourseEnrollmentItem): string {
 }
 
 export function TutorCourseStudentsTable({
+  courseId,
   enrollments,
 }: TutorCourseStudentsTableProps) {
   return (
@@ -43,6 +47,7 @@ export function TutorCourseStudentsTable({
               <th className="px-4 py-3 font-medium">Parent</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Enrolled</th>
+              <th className="px-4 py-3 text-right font-medium">Progress</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -66,6 +71,17 @@ export function TutorCourseStudentsTable({
                   <EnrollmentStatusBadge status={enrollment.status} />
                 </td>
                 <td className="px-4 py-4">{formatDate(enrollment.enrolledAt)}</td>
+                <td className="px-4 py-4 text-right">
+                  {courseId ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link
+                        href={`/dashboard/tutor/courses/${courseId}/students/${enrollment.student.id}/progress`}
+                      >
+                        Open
+                      </Link>
+                    </Button>
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -88,6 +104,7 @@ export function TutorEnrollmentsTable({
               <th className="px-4 py-3 font-medium">Student</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Enrolled</th>
+              <th className="px-4 py-3 text-right font-medium">Progress</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -111,6 +128,15 @@ export function TutorEnrollmentsTable({
                   <EnrollmentStatusBadge status={enrollment.status} />
                 </td>
                 <td className="px-4 py-4">{formatDate(enrollment.enrolledAt)}</td>
+                <td className="px-4 py-4 text-right">
+                  <Button asChild size="sm" variant="outline">
+                    <Link
+                      href={`/dashboard/tutor/courses/${enrollment.course.id}/students/${enrollment.student.id}/progress`}
+                    >
+                      Open
+                    </Link>
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>

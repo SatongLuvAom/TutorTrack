@@ -1,6 +1,6 @@
 # TutorTrack
 
-TutorTrack is a tutor marketplace and student progress tracking platform. This repository is currently at Phase 11: deterministic progress report engine.
+TutorTrack is a tutor marketplace and student progress tracking platform. This repository is currently at Phase 12: progress report UI.
 
 ## Stack
 
@@ -406,7 +406,7 @@ Helpers now exist for future reports:
 - `getSkillAverageForStudent(studentId, courseId?)`
 - `mapSkillLevelToScore(level)`
 
-Phase 10 still does not implement the final progress report engine/UI, AI features, payment gateway processing, or a separate assessment-template schema.
+Phase 10 still does not implement AI features, payment gateway processing, or a separate assessment-template schema.
 
 Verify assessments and skill progress with:
 
@@ -467,15 +467,65 @@ Behavior score placeholder:
 
 Progress report permissions:
 
-- Admins can view all progress reports and notes.
+- Admins can view all progress reports and notes, and can create progress notes for students with ACTIVE enrollment. Because the current schema requires `tutorId` on `ProgressNote`, admin-created notes are attached to the course tutor record.
 - Tutors can view progress and create notes only for ACTIVE enrolled students in their own courses.
 - Students can view only their own active-course progress.
 - Parents can view only active linked children through `ParentStudentLink`.
 - Public users cannot access progress report or progress note APIs.
 
-Phase 11 intentionally does not implement polished report UI, PDF export, AI recommendations, or payment gateway processing.
+Phase 11 intentionally does not implement PDF export, AI recommendations, or payment gateway processing.
 
 Verify progress reports with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+## Progress Report UI
+
+Phase 12 adds protected progress report UI that uses the Phase 11 deterministic report engine.
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard/student/progress` | Student overview across own ACTIVE course enrollments. |
+| `/dashboard/student/progress/[courseId]` | Student full report for one own ACTIVE course. |
+| `/dashboard/parent/children/[studentId]/progress` | Parent overview for an active linked child. |
+| `/dashboard/parent/children/[studentId]/courses/[courseId]/progress` | Parent full child report with parent-friendly wording. |
+| `/dashboard/tutor/students/[studentId]/progress` | Tutor overview for an ACTIVE enrolled student in own courses. |
+| `/dashboard/tutor/courses/[courseId]/students/[studentId]/progress` | Tutor full report with progress note form and note history. |
+| `/dashboard/admin/progress` | Admin progress overview across ACTIVE enrollments with filters. |
+| `/dashboard/admin/students/[studentId]/courses/[courseId]/progress` | Admin read-only full progress report and note history. |
+
+Visibility rules:
+
+- Students can view only their own progress reports.
+- Parents can view only active linked children through `ParentStudentLink`.
+- Tutors can view progress and create progress notes only for ACTIVE enrolled students in their own courses.
+- Admins can view all progress reports. The admin UI is read-focused in this MVP.
+- Public users cannot access progress report pages.
+
+Score badges:
+
+| Score | Label |
+| --- | --- |
+| 85-100 | Excellent |
+| 70-84 | Good |
+| 50-69 | Needs Attention |
+| 0-49 | At Risk |
+| No source data | Not enough data |
+
+Data completeness shows attendance, homework, assessment, and skill data availability. Tutor note presence is shown separately. Low completeness displays a clear partial-data message instead of fabricating insight.
+
+Current limitations:
+
+- No PDF export yet.
+- No AI recommendations; next steps are deterministic rules from the progress engine.
+- No polished analytics dashboard beyond the MVP overview/detail UI.
+
+Verify progress UI with:
 
 ```bash
 npm run typecheck
@@ -494,6 +544,6 @@ npm run build
 - `types/` shared TypeScript types.
 - `tests/` Vitest tests.
 
-## Phase 11 Scope
+## Phase 12 Scope
 
-This phase implements the deterministic progress report engine, progress note service, protected progress APIs, and tests. Polished progress report UI, PDF export, AI recommendations, and payment gateway processing should be added in later phases with server-side authorization and tests.
+This phase implements progress overview/detail pages, reusable progress report components, tutor progress note UI, admin progress inspection, parent-friendly progress wording, and UI helper tests. PDF export, AI recommendations, payment gateway processing, and deeper analytics should be added in later phases with server-side authorization and tests.

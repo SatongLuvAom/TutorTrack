@@ -118,6 +118,13 @@ export default async function ParentDashboardPage() {
                       Skills
                     </Link>
                   </Button>
+                  <Button asChild className="mt-4 sm:ml-2" variant="outline">
+                    <Link
+                      href={`/dashboard/parent/children/${child.studentId}/progress`}
+                    >
+                      Progress
+                    </Link>
+                  </Button>
                 </article>
               ))}
             </div>

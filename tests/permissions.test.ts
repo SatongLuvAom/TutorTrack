@@ -365,6 +365,12 @@ describe("permission helpers", () => {
     await expect(
       canViewProgressReport(admin, "student-1", "course-1", store),
     ).resolves.toBe(true);
+    await expect(
+      canCreateProgressNote(admin, "student-1", "course-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canCreateProgressNote(admin, "student-2", "course-1", store),
+    ).resolves.toBe(false);
     expect(canManageAnyCourse(admin)).toBe(true);
     expect(canVerifyPayment(admin)).toBe(true);
   });
@@ -797,6 +803,12 @@ describe("permission helpers", () => {
     );
     await expect(
       canViewCourseSkillProgress(null, "course-1", store),
+    ).resolves.toBe(false);
+    await expect(
+      canViewProgressReport(null, "student-1", "course-1", store),
+    ).resolves.toBe(false);
+    await expect(
+      canCreateProgressNote(null, "student-1", "course-1", store),
     ).resolves.toBe(false);
     await expect(canEditCourse(undefined, "course-1", store)).resolves.toBe(
       false,
