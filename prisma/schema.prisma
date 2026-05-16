@@ -83,6 +83,11 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum PaymentProvider {
+  MANUAL
+  OMISE
+}
+
 model User {
   id           String     @id @default(uuid())
   email        String     @unique
@@ -486,12 +491,21 @@ model Payment {
   enrollmentId  String?
   method        PaymentMethod
   status        PaymentStatus @default(PENDING)
+  provider      PaymentProvider @default(MANUAL)
   amountCents   Int
   currency      String        @default("THB")
   referenceCode String?       @unique
   proofUrl      String?
   paidAt        DateTime?
+  failedAt      DateTime?
+  expiresAt     DateTime?
   note          String?
+  providerChargeId  String?   @unique
+  providerSourceId  String?
+  providerStatus    String?
+  providerPayload   Json?
+  webhookEventId    String?
+  lastWebhookAt     DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -504,7 +518,14 @@ model Payment {
   @@index([enrollmentId])
   @@index([method])
   @@index([status])
+  @@index([provider])
   @@index([paidAt])
+  @@index([failedAt])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([providerSourceId])
+  @@index([webhookEventId])
   @@index([payerId, status])
   @@index([courseId, status])
+  @@index([provider, status])
 }

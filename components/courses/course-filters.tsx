@@ -18,11 +18,7 @@ const sortLabels: Record<(typeof courseSortOptions)[number], string> = {
 
 export function CourseFilters({ filters, subjects }: CourseFiltersProps) {
   return (
-    <form
-      action="/courses"
-      className="tt-filter-panel"
-      method="get"
-    >
+    <form action="/courses" className="tt-filter-panel" method="get">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2 md:col-span-2">
           <label className="tt-label" htmlFor="search">

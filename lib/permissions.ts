@@ -1420,13 +1420,6 @@ export async function canViewPayment(
     return true;
   }
 
-  if (isTutor(user) && hasTutorProfile(user)) {
-    return (
-      paymentEnrollmentMatchesCourse &&
-      payment.courseTutorId === user.tutorProfileId
-    );
-  }
-
   if (isStudent(user) && hasStudentProfile(user)) {
     return (
       paymentEnrollmentMatchesCourse &&
@@ -1452,8 +1445,83 @@ export async function canViewPayment(
   return false;
 }
 
+export async function canCreatePayment(
+  user: PermissionUser | null | undefined,
+  enrollmentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  const enrollment = await store.getEnrollmentAccess(enrollmentId);
+
+  if (
+    !enrollment ||
+    (enrollment.status !== EnrollmentStatus.PENDING &&
+      enrollment.status !== EnrollmentStatus.ACTIVE)
+  ) {
+    return false;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return enrollment.studentId === user.studentProfileId;
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasActiveParentStudentLink(
+      user.parentProfileId,
+      enrollment.studentId,
+    );
+  }
+
+  return false;
+}
+
+export async function canViewStudentPayments(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  if (!user) {
+    return false;
+  }
+
+  if (isAdmin(user)) {
+    return true;
+  }
+
+  if (isStudent(user) && hasStudentProfile(user)) {
+    return user.studentProfileId === studentId;
+  }
+
+  if (isParent(user) && hasParentProfile(user)) {
+    return store.hasActiveParentStudentLink(user.parentProfileId, studentId);
+  }
+
+  return false;
+}
+
+export async function canViewParentChildPayments(
+  user: PermissionUser | null | undefined,
+  studentId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canViewParentChild(user, studentId, store);
+}
+
+export async function canViewTutorPaymentSummary(
+  user: PermissionUser | null | undefined,
+  courseId: string,
+  store: PermissionStore = prismaPermissionStore,
+): Promise<boolean> {
+  return canViewTutorCourseEnrollments(user, courseId, store);
+}
+
 export function canVerifyPayment(
   user: PermissionUser | null | undefined,
+  paymentId?: string,
 ): boolean {
+  void paymentId;
   return isAdmin(user);
 }

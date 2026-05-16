@@ -6,7 +6,12 @@ import {
   type UserRole as UserRoleType,
 } from "./generated/prisma/enums";
 import { getDb } from "./db";
-import { hashPassword, LEGACY_DEMO_PASSWORD_HASH, verifyPassword } from "./password";
+import {
+  canUseLegacyDemoPassword,
+  hashPassword,
+  LEGACY_DEMO_PASSWORD_HASH,
+  verifyPassword,
+} from "./password";
 
 export const loginSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
@@ -70,7 +75,7 @@ export async function authenticateUser(
   const passwordMatches = await verifyPassword(input.password, user.passwordHash, {
     allowLegacyDemoHash:
       user.passwordHash === LEGACY_DEMO_PASSWORD_HASH &&
-      user.email.endsWith("@tutortrack.test"),
+      canUseLegacyDemoPassword(user.email),
   });
   if (!passwordMatches) {
     return { ok: false, reason: "INVALID_CREDENTIALS" };

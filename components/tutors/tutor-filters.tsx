@@ -20,11 +20,7 @@ const sortLabels: Record<(typeof tutorSortOptions)[number], string> = {
 
 export function TutorFilters({ filters, subjects }: TutorFiltersProps) {
   return (
-    <form
-      action="/tutors"
-      className="tt-filter-panel"
-      method="get"
-    >
+    <form action="/tutors" className="tt-filter-panel" method="get">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-2 md:col-span-2">
           <label className="tt-label" htmlFor="search">

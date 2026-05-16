@@ -16,6 +16,7 @@ import {
   canCreateAssignment,
   canCreateAssessment,
   canCreateProgressNote,
+  canCreatePayment,
   canCompleteSession,
   canEditAssessment,
   canCreateParentChildEnrollment,
@@ -45,12 +46,15 @@ import {
   canViewSubmission,
   canViewCourseSkillProgress,
   canViewParentChild,
+  canViewParentChildPayments,
   canVerifyPayment,
   canViewProgressReport,
   canViewCourse,
   canViewEnrollment,
   canViewTutorCourseEnrollments,
   canViewPayment,
+  canViewStudentPayments,
+  canViewTutorPaymentSummary,
   canViewStudent,
   canViewStudentAttendance,
   canViewStudentAssessments,
@@ -356,6 +360,18 @@ describe("permission helpers", () => {
       canViewSessionAttendance(admin, "session-1", store),
     ).resolves.toBe(true);
     await expect(canViewPayment(admin, "payment-1", store)).resolves.toBe(true);
+    await expect(canCreatePayment(admin, "enrollment-1", store)).resolves.toBe(
+      false,
+    );
+    await expect(
+      canViewStudentPayments(admin, "student-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canViewParentChildPayments(admin, "student-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canViewTutorPaymentSummary(admin, "course-1", store),
+    ).resolves.toBe(true);
     await expect(canViewAssessment(admin, "assessment-1", store)).resolves.toBe(
       true,
     );
@@ -372,7 +388,7 @@ describe("permission helpers", () => {
       canCreateProgressNote(admin, "student-2", "course-1", store),
     ).resolves.toBe(false);
     expect(canManageAnyCourse(admin)).toBe(true);
-    expect(canVerifyPayment(admin)).toBe(true);
+    expect(canVerifyPayment(admin, "payment-1")).toBe(true);
   });
 
   it("enforces tutor course ownership", async () => {
@@ -423,6 +439,21 @@ describe("permission helpers", () => {
     await expect(canCreateSession(tutorOne, "course-1", store)).resolves.toBe(
       false,
     );
+    await expect(canCreatePayment(tutorOne, "enrollment-1", store)).resolves.toBe(
+      false,
+    );
+    await expect(canViewPayment(tutorOne, "payment-1", store)).resolves.toBe(
+      false,
+    );
+    await expect(
+      canViewStudentPayments(tutorOne, "student-1", store),
+    ).resolves.toBe(false);
+    await expect(
+      canViewTutorPaymentSummary(tutorOne, "course-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canViewTutorPaymentSummary(tutorOne, "course-2", store),
+    ).resolves.toBe(false);
     expect(canManageAnyCourse(tutorOne)).toBe(false);
   });
 
@@ -637,6 +668,18 @@ describe("permission helpers", () => {
     await expect(canViewPayment(studentOne, "payment-1", store)).resolves.toBe(
       true,
     );
+    await expect(
+      canCreatePayment(studentOne, "enrollment-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canCreatePayment(studentTwo, "enrollment-1", store),
+    ).resolves.toBe(false);
+    await expect(
+      canViewStudentPayments(studentOne, "student-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canViewStudentPayments(studentOne, "student-2", store),
+    ).resolves.toBe(false);
     await expect(canViewStudent(studentTwo, "student-1", store)).resolves.toBe(
       false,
     );
@@ -736,6 +779,24 @@ describe("permission helpers", () => {
       true,
     );
     await expect(
+      canCreatePayment(parentOne, "enrollment-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canCreatePayment(parentTwo, "enrollment-1", store),
+    ).resolves.toBe(false);
+    await expect(
+      canViewParentChildPayments(parentOne, "student-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canViewParentChildPayments(parentTwo, "student-1", store),
+    ).resolves.toBe(false);
+    await expect(
+      canViewStudentPayments(parentOne, "student-1", store),
+    ).resolves.toBe(true);
+    await expect(
+      canViewStudentPayments(parentOne, "student-2", store),
+    ).resolves.toBe(false);
+    await expect(
       canViewPayment(parentOne, "payment-inconsistent", store),
     ).resolves.toBe(false);
     await expect(
@@ -810,9 +871,12 @@ describe("permission helpers", () => {
     await expect(
       canCreateProgressNote(null, "student-1", "course-1", store),
     ).resolves.toBe(false);
+    await expect(canCreatePayment(null, "enrollment-1", store)).resolves.toBe(
+      false,
+    );
     await expect(canEditCourse(undefined, "course-1", store)).resolves.toBe(
       false,
     );
-    expect(canVerifyPayment(null)).toBe(false);
+    expect(canVerifyPayment(null, "payment-1")).toBe(false);
   });
 });

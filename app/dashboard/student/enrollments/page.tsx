@@ -27,7 +27,7 @@ export default async function StudentEnrollmentsPage({
 
   return (
     <main className="tt-page">
-      <section className="border-b border-border bg-card/60">
+      <section className="border-b border-border bg-gradient-to-br from-sky-50 via-white to-emerald-50">
         <div className="tt-shell py-8">
           <Button asChild size="sm" variant="ghost">
             <Link href="/dashboard/student">
@@ -38,7 +38,7 @@ export default async function StudentEnrollmentsPage({
           <p className="tt-kicker mt-5">Student dashboard</p>
           <h1 className="tt-heading mt-2 text-3xl">My enrollments</h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
-            ดูคอร์สที่สมัครไว้และสถานะการสมัครของตัวเอง นักเรียนยกเลิกได้เฉพาะรายการที่ยังรออนุมัติ
+            ดูคอร์สที่สมัครไว้ สถานะการสมัคร และช่องทางชำระเงินของตัวเอง
           </p>
         </div>
       </section>

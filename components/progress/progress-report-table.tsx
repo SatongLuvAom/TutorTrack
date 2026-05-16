@@ -27,8 +27,77 @@ export function ProgressReportTable({
   parentFriendly = false,
 }: ProgressReportTableProps) {
   return (
-    <div className="tt-card overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="space-y-4">
+      <div className="grid gap-4 md:hidden">
+        {rows.map((row) => {
+          const status = getProgressScoreStatus(
+            row.progressScore,
+            row.dataCompleteness.completenessScore,
+          );
+          const recommendation = row.latestRecommendation
+            ? parentFriendly
+              ? toParentProgressMessage(row.latestRecommendation)
+              : row.latestRecommendation
+            : "No recommendation yet";
+
+          return (
+            <article className="tt-card p-5" key={`${row.studentId}:${row.courseId}`}>
+              {showStudent ? (
+                <div className="mb-3 rounded-lg bg-secondary/65 p-3">
+                  <p className="text-sm font-semibold">{row.studentName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {row.studentEmail}
+                  </p>
+                </div>
+              ) : null}
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="font-semibold">{row.courseTitle}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {row.subjectName}
+                  </p>
+                  {showTutor ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Tutor: {row.tutorName}
+                    </p>
+                  ) : null}
+                </div>
+                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
+                  {getProgressScoreLabel(status)}
+                </span>
+              </div>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">
+                    Progress {Math.round(row.progressScore)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    Completeness{" "}
+                    {formatMetricPercent(row.dataCompleteness.completenessScore)}
+                  </span>
+                </div>
+                <ProgressScoreBar
+                  className="mt-2"
+                  completenessScore={row.dataCompleteness.completenessScore}
+                  score={row.progressScore}
+                />
+              </div>
+              <p className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm leading-6 text-muted-foreground">
+                {recommendation}
+              </p>
+              <Button asChild className="mt-4 w-full" size="sm" variant="outline">
+                <Link href={getDetailHref(row)}>
+                  <Eye aria-hidden="true" />
+                  View report
+                </Link>
+              </Button>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="tt-card hidden overflow-hidden md:block">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-muted/70 text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -122,6 +191,7 @@ export function ProgressReportTable({
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

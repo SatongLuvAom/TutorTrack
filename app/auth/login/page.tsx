@@ -15,6 +15,7 @@ type LoginPageProps = {
 
 const errorMessages: Record<string, string> = {
   invalid: "Email or password is incorrect.",
+  rate_limited: "Too many attempts. Please wait and try again.",
   suspended: "This account is suspended.",
 };
 

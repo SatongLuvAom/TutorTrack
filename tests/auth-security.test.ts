@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { UserRole } from "../lib/generated/prisma/enums";
-import { DEMO_PASSWORD, LEGACY_DEMO_PASSWORD_HASH, verifyPassword } from "../lib/password";
+import {
+  canUseLegacyDemoPassword,
+  DEMO_PASSWORD,
+  LEGACY_DEMO_PASSWORD_HASH,
+  verifyPassword,
+} from "../lib/password";
+import { checkRateLimit } from "../lib/rate-limit";
 import {
   getTrustedRequestUrl,
   isSameOriginRequest,
@@ -63,6 +69,20 @@ describe("password and session hardening", () => {
     ).resolves.toBe(true);
   });
 
+  it("does not allow legacy demo password fallback in production by default", () => {
+    try {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("ALLOW_DEMO_PASSWORD_LOGIN", "false");
+
+      expect(canUseLegacyDemoPassword("student1@tutortrack.test")).toBe(false);
+
+      vi.stubEnv("ALLOW_DEMO_PASSWORD_LOGIN", "true");
+      expect(canUseLegacyDemoPassword("student1@tutortrack.test")).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("rejects malformed session tokens", () => {
     const token = createSessionToken({
       userId: "user-1",
@@ -73,5 +93,38 @@ describe("password and session hardening", () => {
 
     expect(verifySessionToken(`${token}.extra`)).toBeNull();
     expect(verifySessionToken("not-a-session-token")).toBeNull();
+  });
+});
+
+describe("rate limiting", () => {
+  it("blocks requests after the configured window limit", () => {
+    const options = {
+      key: "test:rate-limit",
+      limit: 2,
+      now: 1_000,
+      windowMs: 60_000,
+    };
+
+    expect(checkRateLimit(options).allowed).toBe(true);
+    expect(checkRateLimit(options).allowed).toBe(true);
+    expect(checkRateLimit(options).allowed).toBe(false);
+  });
+
+  it("resets counts after the configured window", () => {
+    const options = {
+      key: "test:rate-limit-reset",
+      limit: 1,
+      now: 1_000,
+      windowMs: 60_000,
+    };
+
+    expect(checkRateLimit(options).allowed).toBe(true);
+    expect(checkRateLimit(options).allowed).toBe(false);
+    expect(
+      checkRateLimit({
+        ...options,
+        now: 61_001,
+      }).allowed,
+    ).toBe(true);
   });
 });

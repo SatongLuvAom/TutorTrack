@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { CourseStatus, CourseType } from "../lib/generated/prisma/enums";
-import { courseCreateSchema } from "../lib/validators/course";
+import {
+  courseCreateSchema,
+  courseStatusActionSchema,
+} from "../lib/validators/course";
 import {
   adminUpdateCourseStatus,
   archiveCourse,
@@ -175,6 +178,30 @@ describe("course validation", () => {
       courseCreateSchema.safeParse({
         ...validCourseInput,
         totalSessions: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates admin status mutation payloads", () => {
+    expect(
+      courseStatusActionSchema.safeParse({
+        courseId: "course-1",
+        status: CourseStatus.PUBLISHED,
+        returnTo: "/dashboard/admin/courses",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      courseStatusActionSchema.safeParse({
+        courseId: "",
+        status: CourseStatus.PUBLISHED,
+      }).success,
+    ).toBe(false);
+
+    expect(
+      courseStatusActionSchema.safeParse({
+        courseId: "course-1",
+        status: "DELETED",
       }).success,
     ).toBe(false);
   });

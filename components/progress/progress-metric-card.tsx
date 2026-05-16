@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProgressScoreBar } from "./progress-score-bar";
 import { formatMetricPercent } from "./progress-utils";
 
 type ProgressMetricCardProps = {
@@ -37,6 +38,7 @@ export function ProgressMetricCard({
           {helperText}
         </p>
       ) : null}
+      <ProgressScoreBar className="mt-4" score={value} />
     </article>
   );
 }

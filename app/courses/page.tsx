@@ -1,6 +1,7 @@
 import { CourseCard } from "@/components/courses/course-card";
 import { CourseFilters } from "@/components/courses/course-filters";
 import { SearchEmptyState } from "@/components/marketplace/search-empty-state";
+import { StatusBadge } from "@/components/marketplace/status-badge";
 import {
   getSubjectOptions,
   listPublicCourses,
@@ -23,14 +24,14 @@ export default async function CoursesPage({ searchParams }: CoursesPageProps) {
 
   return (
     <main className="tt-page">
-      <section className="border-b border-border bg-card/60">
+      <section className="border-b border-border bg-gradient-to-br from-emerald-50 via-white to-amber-50">
         <div className="tt-shell py-12">
-          <p className="tt-kicker">Public courses</p>
-          <h1 className="tt-heading mt-2 max-w-3xl text-4xl leading-[1.2]">
+          <StatusBadge tone="accent">Published courses only</StatusBadge>
+          <h1 className="tt-heading mt-3 max-w-3xl text-4xl leading-[1.2]">
             ค้นหาคอร์สที่เข้ากับเป้าหมายการเรียน
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-8 text-muted-foreground">
-            ดูเฉพาะคอร์สที่เผยแพร่แล้วจากติวเตอร์ที่ผ่านการอนุมัติ เลือกตามวิชา ระดับ ราคา และรูปแบบเรียนได้ทันที
+            ดูเฉพาะคอร์สที่เผยแพร่แล้วจากติวเตอร์ที่ผ่านการอนุมัติ พร้อมราคา จำนวนครั้ง และรูปแบบเรียน
           </p>
         </div>
       </section>

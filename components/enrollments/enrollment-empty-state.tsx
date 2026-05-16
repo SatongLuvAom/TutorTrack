@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { BookOpenCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyStateIllustration } from "@/components/visual/empty-state-illustration";
 
 type EnrollmentEmptyStateProps = {
   title: string;
@@ -17,9 +17,7 @@ export function EnrollmentEmptyState({
 }: EnrollmentEmptyStateProps) {
   return (
     <section className="tt-card flex flex-col items-center p-8 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <BookOpenCheck aria-hidden="true" className="size-6" />
-      </div>
+      <EmptyStateIllustration className="h-auto w-full max-w-64" />
       <h2 className="tt-heading mt-4 text-xl">{title}</h2>
       <p className="mt-2 max-w-lg text-sm leading-7 text-muted-foreground">
         {description}

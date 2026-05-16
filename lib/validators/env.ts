@@ -17,6 +17,11 @@ export const serverEnvSchema = z.object({
   AUTH_SECRET: z.string().min(32, {
     message: "AUTH_SECRET must be at least 32 characters long.",
   }),
+  PAYMENT_PROVIDER: z.enum(["OMISE", "MANUAL"]).optional().default("MANUAL"),
+  OMISE_PUBLIC_KEY: z.string().trim().min(1).optional(),
+  NEXT_PUBLIC_OMISE_PUBLIC_KEY: z.string().trim().min(1).optional(),
+  OMISE_SECRET_KEY: z.string().trim().min(1).optional(),
+  OMISE_WEBHOOK_SECRET: z.string().trim().min(12).optional(),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

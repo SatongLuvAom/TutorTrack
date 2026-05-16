@@ -1,0 +1,14 @@
+<svg width="800" height="520" viewBox="0 0 800 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Course cover placeholder</title>
+  <desc id="desc">Visual course cover with books, cards, and study progress.</desc>
+  <rect width="800" height="520" rx="44" fill="#F0F9FF"/>
+  <circle cx="670" cy="96" r="72" fill="#FDE68A"/>
+  <rect x="104" y="110" width="248" height="300" rx="28" fill="#FFFFFF" stroke="#BAE6FD" stroke-width="8"/>
+  <rect x="398" y="110" width="298" height="132" rx="28" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="8"/>
+  <rect x="398" y="278" width="298" height="132" rx="28" fill="#FFFBEB" stroke="#FDE68A" stroke-width="8"/>
+  <path d="M150 174h150M150 214h104M150 254h126" stroke="#0284C7" stroke-width="18" stroke-linecap="round"/>
+  <path d="M150 332h156" stroke="#0F766E" stroke-width="26" stroke-linecap="round"/>
+  <path d="M448 164h178M448 204h116" stroke="#0F766E" stroke-width="18" stroke-linecap="round"/>
+  <path d="M448 332h150M448 370h92" stroke="#B45309" stroke-width="18" stroke-linecap="round"/>
+  <path d="M88 438h620" stroke="#0F172A" stroke-opacity=".08" stroke-width="18" stroke-linecap="round"/>
+</svg>

@@ -8,6 +8,17 @@ const PASSWORD_SCHEME = "scrypt";
 export const DEMO_PASSWORD = "TutorTrackDemo123!";
 export const LEGACY_DEMO_PASSWORD_HASH = "placeholder-password-hash-auth-phase";
 
+export function canUseLegacyDemoPassword(email: string): boolean {
+  if (!email.endsWith("@tutortrack.test")) {
+    return false;
+  }
+
+  return (
+    process.env.NODE_ENV !== "production" ||
+    process.env.ALLOW_DEMO_PASSWORD_LOGIN === "true"
+  );
+}
+
 export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("base64url");
   const derivedKey = (await scrypt(password, salt, KEY_LENGTH)) as Buffer;

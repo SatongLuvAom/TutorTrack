@@ -1,4 +1,5 @@
 import { SearchEmptyState } from "@/components/marketplace/search-empty-state";
+import { StatusBadge } from "@/components/marketplace/status-badge";
 import { TutorCard } from "@/components/tutors/tutor-card";
 import { TutorFilters } from "@/components/tutors/tutor-filters";
 import { getSubjectOptions } from "@/services/course.service";
@@ -20,14 +21,14 @@ export default async function TutorsPage({ searchParams }: TutorsPageProps) {
 
   return (
     <main className="tt-page">
-      <section className="border-b border-border bg-card/60">
+      <section className="border-b border-border bg-gradient-to-br from-sky-50 via-white to-emerald-50">
         <div className="tt-shell py-12">
-          <p className="tt-kicker">Public tutors</p>
-          <h1 className="tt-heading mt-2 max-w-3xl text-4xl leading-[1.2]">
-            ค้นหาติวเตอร์ที่สอนเข้าใจและเหมาะกับเรา
+          <StatusBadge tone="accent">Approved tutors only</StatusBadge>
+          <h1 className="tt-heading mt-3 max-w-3xl text-4xl leading-[1.2]">
+            ค้นหาติวเตอร์ที่สอนเข้าใจและเหมาะกับเป้าหมายของเรา
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-8 text-muted-foreground">
-            เลือกดูเฉพาะติวเตอร์ที่ผ่านการอนุมัติ เปรียบเทียบวิชา ระดับ ราคา รีวิว และแนวการสอนได้จากหน้าเดียว
+            เปรียบเทียบวิชา ระดับ ราคา รีวิว และแนวการสอนได้จากการ์ดเดียว
           </p>
         </div>
       </section>
@@ -38,7 +39,7 @@ export default async function TutorsPage({ searchParams }: TutorsPageProps) {
         <div className="mt-8">
           {tutors.length === 0 ? (
             <SearchEmptyState
-              description="ลองเปลี่ยนคำค้นหา วิชา ช่วงราคา หรือคะแนนขั้นต่ำเพื่อดูติวเตอร์ที่เหมาะกับเป้าหมายของผู้เรียน"
+              description="ลองเปลี่ยนคำค้นหา วิชา ช่วงราคา หรือคะแนนขั้นต่ำเพื่อดูติวเตอร์ที่เหมาะกับเป้าหมาย"
               resetHref="/tutors"
               title="ไม่พบติวเตอร์ที่ตรงกับตัวกรอง"
             />

@@ -66,8 +66,14 @@ export const courseStatusUpdateSchema = z.object({
   ]),
 });
 
+export const courseStatusActionSchema = courseStatusUpdateSchema.extend({
+  courseId: requiredText("Course", 120),
+  returnTo: z.string().trim().max(500).optional().catch(undefined),
+});
+
 export type CourseCreateInput = z.infer<typeof courseCreateSchema>;
 export type CourseUpdateInput = z.infer<typeof courseUpdateSchema>;
 export type CourseFilterInput = z.infer<typeof courseFilterSchema>;
 export type CourseStatusUpdateInput = z.infer<typeof courseStatusUpdateSchema>;
+export type CourseStatusActionInput = z.infer<typeof courseStatusActionSchema>;
 export type CourseLevel = (typeof courseLevelOptions)[number];

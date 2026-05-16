@@ -1,5 +1,8 @@
 import type { MarketplaceLevel, RatingSummary } from "@/types/marketplace";
-import { UserRole, type UserRole as UserRoleType } from "@/lib/generated/prisma/enums";
+import {
+  UserRole,
+  type UserRole as UserRoleType,
+} from "@/lib/generated/prisma/enums";
 import { courseLevelOptions } from "@/lib/validators/course";
 
 export const MARKETPLACE_LEVEL_OPTIONS: Array<{
@@ -75,7 +78,9 @@ export function getLevelTagsFromStoredLevel(
   return getLevelTagsFromText(...fallbackValues);
 }
 
-export function getLevelTagsFromText(...values: Array<string | null | undefined>) {
+export function getLevelTagsFromText(
+  ...values: Array<string | null | undefined>
+) {
   const text = values.filter(Boolean).join(" ").toLowerCase();
   const levels = new Set<MarketplaceLevel>();
 
@@ -109,7 +114,7 @@ export function getTeachingStyleSummary(
   const text = `${headline ?? ""} ${bio ?? ""}`.toLowerCase();
 
   if (text.includes("โค้ช") || text.includes("diagnostic")) {
-    return "โค้ชโจทย์เป็นขั้นตอน วัดจุดอ่อนและปรับแผนรายคน";
+    return "โค้ชโจทย์เป็นขั้นตอน วัดจุดอ่อน และปรับแผนรายคน";
   }
 
   if (text.includes("ระบบ") || text.includes("พื้นฐาน")) {
@@ -123,7 +128,9 @@ export function getTeachingStyleSummary(
   return "สอนแบบเน้นเป้าหมายผู้เรียน พร้อมติดตามความก้าวหน้าอย่างต่อเนื่อง";
 }
 
-export function normalizeSearchText(value: string | undefined): string | undefined {
+export function normalizeSearchText(
+  value: string | undefined,
+): string | undefined {
   const normalized = value?.trim();
 
   return normalized ? normalized : undefined;

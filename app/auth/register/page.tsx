@@ -17,6 +17,7 @@ const errorMessages: Record<string, string> = {
   invalid: "Check the registration details and try again.",
   exists: "An account already exists for this email.",
   failed: "Registration could not be completed.",
+  rate_limited: "Too many attempts. Please wait and try again.",
 };
 
 export default async function RegisterPage({

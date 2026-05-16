@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { CourseStatus } from "@/lib/generated/prisma/enums";
 import { requireAdmin, requirePermission } from "@/lib/guards";
 import { canManageAnyCourse } from "@/lib/permissions";
+import { courseStatusActionSchema } from "@/lib/validators/course";
 import { adminUpdateCourseStatus } from "@/services/course.service";
 
 function readString(formData: FormData, key: string): string | undefined {
@@ -33,30 +34,51 @@ function redirectWithError(path: string, message: string): never {
   redirect(`${pathname}?${params.toString()}`);
 }
 
+function firstValidationMessage(error: unknown): string {
+  if (
+    error &&
+    typeof error === "object" &&
+    "issues" in error &&
+    Array.isArray(error.issues) &&
+    error.issues[0] &&
+    typeof error.issues[0] === "object" &&
+    "message" in error.issues[0] &&
+    typeof error.issues[0].message === "string"
+  ) {
+    return error.issues[0].message;
+  }
+
+  return "Invalid course status update.";
+}
+
 async function updateAdminStatus(
   formData: FormData,
   status: CourseStatus,
 ): Promise<void> {
-  const courseId = readString(formData, "courseId");
   const returnTo = safeReturnPath(readString(formData, "returnTo"));
+  const parsed = courseStatusActionSchema.safeParse({
+    courseId: readString(formData, "courseId"),
+    status,
+    returnTo,
+  });
 
-  if (!courseId) {
-    redirectWithError(returnTo, "Missing course id.");
+  if (!parsed.success) {
+    redirectWithError(returnTo, firstValidationMessage(parsed.error));
   }
 
   const user = await requireAdmin();
   await requirePermission(canManageAnyCourse(user));
 
   try {
-    await adminUpdateCourseStatus(courseId, status);
+    await adminUpdateCourseStatus(parsed.data.courseId, parsed.data.status);
   } catch {
     redirectWithError(returnTo, "Unable to update course status.");
   }
 
   revalidatePath("/dashboard/admin/courses");
-  revalidatePath(`/dashboard/admin/courses/${courseId}`);
+  revalidatePath(`/dashboard/admin/courses/${parsed.data.courseId}`);
   revalidatePath("/courses");
-  revalidatePath(`/courses/${courseId}`);
+  revalidatePath(`/courses/${parsed.data.courseId}`);
   redirect(returnTo);
 }
 

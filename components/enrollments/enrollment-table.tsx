@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { XCircle } from "lucide-react";
+import { QrCode, WalletCards, XCircle } from "lucide-react";
 import { EnrollmentStatus } from "@/lib/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { EnrollmentStatusBadge } from "@/components/enrollments/enrollment-status-badge";
@@ -27,9 +27,95 @@ export function EnrollmentTable({
   returnTo,
   studentId,
 }: EnrollmentTableProps) {
+  const paymentHref = (enrollmentId: string) =>
+    studentId
+      ? `/dashboard/parent/children/${studentId}/enrollments/${enrollmentId}/payment`
+      : `/dashboard/student/enrollments/${enrollmentId}/payment`;
+  const promptPayHref = (enrollmentId: string) =>
+    studentId
+      ? `/dashboard/parent/children/${studentId}/enrollments/${enrollmentId}/pay`
+      : `/dashboard/student/enrollments/${enrollmentId}/pay`;
+
   return (
-    <div className="tt-card overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="space-y-4">
+      <div className="grid gap-4 md:hidden">
+        {enrollments.map((enrollment) => (
+          <article className="tt-card p-5" key={enrollment.id}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <Link
+                  className="font-semibold text-primary hover:underline"
+                  href={`/courses/${enrollment.course.id}`}
+                >
+                  {enrollment.course.title}
+                </Link>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {enrollment.course.subject.name} - {enrollment.course.type}
+                </p>
+              </div>
+              <EnrollmentStatusBadge status={enrollment.status} />
+            </div>
+            <div className="mt-4 grid gap-3 text-sm">
+              <div className="rounded-lg bg-secondary/60 p-3">
+                <p className="text-muted-foreground">Tutor</p>
+                <p className="mt-1 font-medium">{enrollment.course.tutor.name}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-secondary/60 p-3">
+                  <p className="text-muted-foreground">Price</p>
+                  <p className="mt-1 font-medium">
+                    {formatPrice(enrollment.course.priceCents)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-secondary/60 p-3">
+                  <p className="text-muted-foreground">Enrolled</p>
+                  <p className="mt-1 font-medium">
+                    {formatDate(enrollment.enrolledAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {enrollment.status === EnrollmentStatus.PENDING ||
+              enrollment.status === EnrollmentStatus.ACTIVE ? (
+                <>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={promptPayHref(enrollment.id)}>
+                      <QrCode aria-hidden="true" />
+                      PromptPay
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={paymentHref(enrollment.id)}>
+                      <WalletCards aria-hidden="true" />
+                      Manual
+                    </Link>
+                  </Button>
+                </>
+              ) : null}
+              {cancelAction && enrollment.status === EnrollmentStatus.PENDING ? (
+                <form action={cancelAction}>
+                  <input name="enrollmentId" type="hidden" value={enrollment.id} />
+                  {studentId ? (
+                    <input name="studentId" type="hidden" value={studentId} />
+                  ) : null}
+                  <input name="returnTo" type="hidden" value={returnTo} />
+                  <Button size="sm" type="submit" variant="destructive">
+                    <XCircle aria-hidden="true" />
+                    Cancel
+                  </Button>
+                </form>
+              ) : null}
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/courses/${enrollment.course.id}`}>View</Link>
+              </Button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="tt-card hidden overflow-hidden md:block">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] text-left text-sm">
           <thead className="bg-secondary/65 text-xs uppercase text-muted-foreground">
             <tr>
@@ -76,32 +162,57 @@ export function EnrollmentTable({
                 </td>
                 <td className="px-4 py-4">{formatDate(enrollment.enrolledAt)}</td>
                 <td className="px-4 py-4">
-                  {cancelAction && enrollment.status === EnrollmentStatus.PENDING ? (
-                    <form action={cancelAction}>
-                      <input
-                        name="enrollmentId"
-                        type="hidden"
-                        value={enrollment.id}
-                      />
-                      {studentId ? (
-                        <input name="studentId" type="hidden" value={studentId} />
-                      ) : null}
-                      <input name="returnTo" type="hidden" value={returnTo} />
-                      <Button size="sm" type="submit" variant="destructive">
-                        <XCircle aria-hidden="true" />
-                        Cancel
+                  <div className="flex flex-wrap gap-2">
+                    {enrollment.status === EnrollmentStatus.PENDING ||
+                    enrollment.status === EnrollmentStatus.ACTIVE ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={promptPayHref(enrollment.id)}>
+                          <QrCode aria-hidden="true" />
+                          PromptPay
+                        </Link>
                       </Button>
-                    </form>
-                  ) : (
+                    ) : null}
+                    {enrollment.status === EnrollmentStatus.PENDING ||
+                    enrollment.status === EnrollmentStatus.ACTIVE ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={paymentHref(enrollment.id)}>
+                          <WalletCards aria-hidden="true" />
+                          Manual
+                        </Link>
+                      </Button>
+                    ) : null}
+                    {cancelAction &&
+                    enrollment.status === EnrollmentStatus.PENDING ? (
+                      <form action={cancelAction}>
+                        <input
+                          name="enrollmentId"
+                          type="hidden"
+                          value={enrollment.id}
+                        />
+                        {studentId ? (
+                          <input
+                            name="studentId"
+                            type="hidden"
+                            value={studentId}
+                          />
+                        ) : null}
+                        <input name="returnTo" type="hidden" value={returnTo} />
+                        <Button size="sm" type="submit" variant="destructive">
+                          <XCircle aria-hidden="true" />
+                          Cancel
+                        </Button>
+                      </form>
+                    ) : null}
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/courses/${enrollment.course.id}`}>View</Link>
                     </Button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyStateIllustration } from "@/components/visual/empty-state-illustration";
 
 type SearchEmptyStateProps = {
   title: string;
@@ -15,9 +15,7 @@ export function SearchEmptyState({
 }: SearchEmptyStateProps) {
   return (
     <div className="tt-card border-dashed p-8 text-center">
-      <div className="mx-auto flex size-12 items-center justify-center rounded-lg bg-secondary text-primary">
-        <SearchX aria-hidden="true" className="size-5" />
-      </div>
+      <EmptyStateIllustration className="mx-auto h-auto w-full max-w-64" />
       <h2 className="tt-heading mt-4 text-xl">{title}</h2>
       <p className="mx-auto mt-2 max-w-lg text-sm leading-7 text-muted-foreground">
         {description}

@@ -1,6 +1,6 @@
 # TutorTrack
 
-TutorTrack is a tutor marketplace and student progress tracking platform. This repository is currently at Phase 12: progress report UI.
+TutorTrack is a tutor marketplace and student progress tracking platform. This repository currently includes manual payments, Omise/Opn PromptPay gateway payments, and testing/security hardening for the MVP.
 
 ## Stack
 
@@ -53,8 +53,13 @@ The app runs at `http://localhost:3000` by default.
 - `AUTH_SECRET` is required for signed HttpOnly session cookies and must be at least 32 characters long.
 - `NEXT_PUBLIC_APP_URL` defaults to `http://localhost:3000` when omitted.
 - `SHADOW_DATABASE_URL` is optional and useful when your database user cannot create Prisma shadow databases during migration workflows.
+- `ALLOW_DEMO_PASSWORD_LOGIN` is optional and should stay unset or `false` in production. Set it to `true` only for disposable demo deployments that intentionally allow seeded `@tutortrack.test` accounts to use the shared demo password.
+- `PAYMENT_PROVIDER` can be `OMISE` for the PromptPay gateway flow or `MANUAL` for manual-only deployments.
+- `OMISE_PUBLIC_KEY` and `NEXT_PUBLIC_OMISE_PUBLIC_KEY` are public Omise/Opn keys. The current PromptPay flow creates charges server-side, but the public key is documented for future client SDK work.
+- `OMISE_SECRET_KEY` is required only on the server for Omise/Opn charge creation and charge retrieval. Never expose it to the browser.
+- `OMISE_WEBHOOK_SECRET` is optional but recommended. Use it as a shared token in the webhook URL query string or a webhook header when your provider setup supports it.
 
-Add payment or other service secrets only when those modules are implemented.
+Manual payment records do not require provider secrets. PromptPay gateway payments require Omise/Opn keys.
 
 ## Database Setup
 
@@ -111,7 +116,7 @@ Demo accounts:
 | Parent | `parent2@tutortrack.test` | เมธินี เลิศล้ำ |
 | Parent | `parent3@tutortrack.test` | ชยุตม์ แสงทอง |
 
-All demo accounts can sign in with password `TutorTrackDemo123!`. The Phase 4 auth layer accepts the legacy seed hash `placeholder-password-hash-auth-phase` only for `@tutortrack.test` demo accounts. New registered users are stored with scrypt password hashes.
+All demo accounts can sign in locally with password `TutorTrackDemo123!`. The auth layer accepts the legacy seed hash `placeholder-password-hash-auth-phase` only for `@tutortrack.test` demo accounts, and production disables that fallback unless `ALLOW_DEMO_PASSWORD_LOGIN="true"` is explicitly set. New registered users are stored with scrypt password hashes.
 
 ## Authentication and Roles
 
@@ -120,6 +125,8 @@ Phase 4 uses a custom email/password auth foundation:
 - Passwords are verified server-side and new accounts are hashed with Node `crypto.scrypt`.
 - Sessions are signed HttpOnly cookies named `tutortrack_session`.
 - Auth POST routes require same-origin `Origin` or `Referer` headers.
+- Login and register routes have basic in-memory rate limiting to reduce brute-force attempts.
+- Global security headers are configured in `next.config.ts`, including frame blocking, content sniffing protection, referrer policy, permissions policy, and a minimal CSP.
 - Logout is a POST-only mutation.
 - Current user resolution lives in `lib/current-user.ts`.
 - Auth helpers live in `lib/auth.ts` and `lib/session.ts`.
@@ -173,9 +180,35 @@ Public visibility rules:
 - Only courses with `CourseStatus.PUBLISHED` are shown publicly.
 - Draft and archived courses are hidden from `/courses` and course detail pages.
 - Public course pages also require the tutor to be approved.
-- Enrollment is implemented for students and linked parents. Payment gateway processing is not implemented yet.
+- Enrollment is implemented for students and linked parents. Omise/Opn PromptPay gateway processing is added in Phase 18.
 
 The schema now stores course `level` for management and marketplace filters. Tutor `education` and `teachingStyle` are still summarized from public tutor headline/bio until dedicated profile fields are added in a later phase.
+
+## Visual UI Polish
+
+Phase 16 improves the MVP presentation without changing business rules or permissions:
+
+- Public marketplace pages now use visual hero sections, image-backed tutor/course cards, clearer CTAs, and visual empty states.
+- Main role dashboards use summary cards and quick-action cards instead of long text blocks.
+- Progress report UI uses larger score cards, progress bars, mobile-friendly report cards, visual skill cards, and clearer partial-data messaging.
+- Enrollment lists render as mobile cards on small screens while preserving readable tables on larger screens.
+
+Image strategy:
+
+- Local/static visuals use `next/image`.
+- Public placeholder assets live in `public/images/`.
+- Remote image hotlinks are not used for marketplace fallback imagery.
+- Optional profile image URLs are used only when they are local app paths; otherwise TutorTrack falls back to safe local placeholders.
+
+Placeholder assets:
+
+- `public/images/hero-learning.svg`
+- `public/images/tutor-placeholder.svg`
+- `public/images/course-placeholder.svg`
+- `public/images/progress-placeholder.svg`
+- `public/images/empty-state.svg`
+
+This phase is visual polish only. It does not add payment gateways, AI recommendations, PDF export, notifications, or new business modules.
 
 ## Course Management
 
@@ -206,7 +239,7 @@ Course permissions:
 - Students, parents, and public visitors cannot access course management routes.
 - Public course pages still show only `PUBLISHED` courses from approved tutors.
 
-The `Course` schema includes `level`, `capacity` for max students, and `totalSessions` for planned sessions. Lesson session scheduling and attendance are implemented in Phase 8. Assignments, payment gateway processing, and progress reports are intentionally left for later phases.
+The `Course` schema includes `level`, `capacity` for max students, and `totalSessions` for planned sessions. Lesson session scheduling and attendance are implemented in Phase 8. Assignments and progress reports are implemented in later phases; Omise/Opn PromptPay gateway processing is added in Phase 18.
 
 Verify course management changes with:
 
@@ -249,7 +282,7 @@ Enrollment rules:
 - The service prevents duplicate `PENDING` or `ACTIVE` enrollments for the same student/course and checks course `capacity` against pending plus active seats.
 - The schema keeps enrollment history and no course/enrollment hard-delete path is exposed.
 
-Payment remains manual-data only from the seed. Payment gateway collection and payment verification flows are intentionally not implemented in Phase 7.
+Manual payment submission and admin verification are implemented in Phase 13. Omise/Opn PromptPay gateway collection is added in Phase 18.
 
 Verify enrollment changes with:
 
@@ -303,7 +336,7 @@ Access rules:
 - Parents can view schedule and attendance only for active linked children.
 - Public users cannot access sessions or attendance dashboard routes.
 
-Phase 8 still does not implement assignments, submissions, assessments, progress reports, or payment gateway processing.
+Phase 8 still does not implement assignments, submissions, assessments, progress reports, or payment gateway processing; those are covered by later phases.
 
 Verify sessions and attendance changes with:
 
@@ -349,7 +382,7 @@ Assignment and submission rules:
 
 The current Prisma schema does not include `Assignment.sessionId`, so Phase 9 assignments are linked to courses only. Session-linked assignments can be added later with a schema migration.
 
-Phase 9 still does not implement deterministic progress reports, AI features, or payment gateway processing.
+Phase 9 still does not implement deterministic progress reports, AI features, or payment gateway processing; those are covered by later phases where in scope.
 
 Verify assignments and submissions with:
 
@@ -406,7 +439,7 @@ Helpers now exist for future reports:
 - `getSkillAverageForStudent(studentId, courseId?)`
 - `mapSkillLevelToScore(level)`
 
-Phase 10 still does not implement AI features, payment gateway processing, or a separate assessment-template schema.
+Phase 10 still does not implement AI features, payment gateway processing, or a separate assessment-template schema; payment gateway support is added in Phase 18.
 
 Verify assessments and skill progress with:
 
@@ -473,7 +506,7 @@ Progress report permissions:
 - Parents can view only active linked children through `ParentStudentLink`.
 - Public users cannot access progress report or progress note APIs.
 
-Phase 11 intentionally does not implement PDF export, AI recommendations, or payment gateway processing.
+Phase 11 intentionally does not implement PDF export, AI recommendations, or payment gateway processing; payment gateway support is added in Phase 18.
 
 Verify progress reports with:
 
@@ -534,6 +567,131 @@ npm run test
 npm run build
 ```
 
+## Manual Payment MVP
+
+Phase 13 adds manual payment submission and admin verification. It does not integrate a payment gateway, card processor, PromptPay API, automatic bank verification, AI slip reading, invoice PDF export, or accounting system.
+
+Payment routes:
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard/student/payments` | Student payment history for own enrollments only. |
+| `/dashboard/student/enrollments/[enrollmentId]/payment` | Student manual payment form for an own `PENDING` or `ACTIVE` enrollment. |
+| `/dashboard/parent/children/[studentId]/payments` | Parent read-only payment history for an active linked child. |
+| `/dashboard/parent/children/[studentId]/enrollments/[enrollmentId]/payment` | Parent manual payment form for an active linked child's enrollment. |
+| `/dashboard/tutor/payments` | Tutor limited payment status summary for enrollments in own courses. Proof URLs and notes are hidden from tutors. |
+| `/dashboard/admin/payments` | Admin payment list with status, method, payer, student, course, tutor, and date filters. |
+| `/dashboard/admin/payments/[paymentId]` | Admin payment detail and verification actions. |
+
+Manual payment workflow:
+
+1. A student or parent creates a payment record for an authorized enrollment.
+2. The payer enters amount, manual method, and either a proof URL or note.
+3. New payments start as `PENDING`.
+4. Admin reviews the payment and marks it `PAID`, `FAILED`, or `REFUNDED`.
+5. When a `PENDING` payment is marked `PAID`, `paidAt` is set and a `PENDING` enrollment is activated.
+
+Payment status lifecycle:
+
+- `PENDING` can become `PAID` or `FAILED`.
+- `PAID` can become `REFUNDED`.
+- `FAILED` and `REFUNDED` are final states in the MVP.
+- Payment records are never hard-deleted.
+- `REFUNDED` preserves the original `paidAt` timestamp for audit history.
+
+Payment rules:
+
+- Students can create and view payments only for their own enrollments.
+- Parents can create and view payments only for active linked children through `ParentStudentLink`.
+- Tutors cannot create or verify payments and can only see limited payment status for their own course enrollments.
+- Admins can view and verify all payments.
+- Public users cannot access payment routes.
+- Payment creation is blocked for `CANCELLED` and `COMPLETED` enrollments.
+- Duplicate `PENDING` payments for the same enrollment are blocked.
+- `CARD` is intentionally disabled in the manual MVP.
+- `MANUAL_TRANSFER` and `PROMPTPAY` are stored as manual records only.
+
+Verify manual payments with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
+## Omise/Opn PromptPay Gateway
+
+Phase 18 adds real Omise/Opn PromptPay QR payments while preserving the manual payment MVP. It does not add credit cards, recurring billing, automatic refunds, tutor payouts, coupons, invoice PDFs, or AI slip reading.
+
+PromptPay routes and APIs:
+
+| Route | Purpose |
+| --- | --- |
+| `/dashboard/student/enrollments/[enrollmentId]/pay` | Student creates an Omise PromptPay QR charge for their own enrollment. |
+| `/dashboard/parent/children/[studentId]/enrollments/[enrollmentId]/pay` | Parent creates an Omise PromptPay QR charge for an active linked child enrollment. |
+| `POST /api/payments/omise/promptpay/create` | Server-side PromptPay charge creation. Requires auth, same-origin request, Zod validation, and payment permission. |
+| `GET /api/payments/[paymentId]/status` | Safe payment status polling for authorized users. |
+| `POST /api/webhooks/omise` | Omise webhook endpoint. It retrieves the charge from Omise before changing local payment status. |
+
+Required Omise/Opn setup:
+
+1. Create an Omise/Opn account and enable PromptPay for Thailand.
+2. Add test keys to `.env` and Vercel environment variables:
+
+```env
+PAYMENT_PROVIDER="OMISE"
+OMISE_PUBLIC_KEY="pkey_test_..."
+NEXT_PUBLIC_OMISE_PUBLIC_KEY="pkey_test_..."
+OMISE_SECRET_KEY="skey_test_..."
+OMISE_WEBHOOK_SECRET="generate-a-random-shared-secret"
+```
+
+3. Configure the webhook URL in the Omise dashboard:
+
+```text
+https://your-domain.com/api/webhooks/omise?secret=your-OMISE_WEBHOOK_SECRET
+```
+
+PromptPay flow:
+
+1. Student or parent opens the PromptPay payment page for an authorized enrollment.
+2. TutorTrack creates a local `PENDING` payment with provider `OMISE`.
+3. TutorTrack creates an Omise PromptPay source and charge with the server-side secret key.
+4. The page displays the QR code from `charge.source.scannable_code.image.download_uri`.
+5. The user scans the QR in a Thai mobile banking app.
+6. Omise sends `charge.complete` to `/api/webhooks/omise`.
+7. TutorTrack retrieves the charge from Omise using `OMISE_SECRET_KEY` and trusts only the retrieved provider status.
+8. If Omise confirms success, payment becomes `PAID`, `paidAt` is set, and a `PENDING` enrollment becomes `ACTIVE`.
+9. Failed or expired provider statuses are mapped to `FAILED` because the current enum has no `EXPIRED`.
+
+Security notes:
+
+- `OMISE_SECRET_KEY` is server-only.
+- Frontend code can create a charge request but cannot mark a payment as `PAID`.
+- Uploaded proof and manual records do not activate Omise gateway payments.
+- Admin manual verification is disabled for Omise gateway payments. Gateway status must come from webhook/provider retrieval.
+- Webhooks are idempotent: duplicate `charge.complete` events update the same payment and do not duplicate enrollment activation.
+- The webhook route does not require a user session, but it validates the shared webhook token when configured and always retrieves the charge from Omise before changing state.
+- Tutor pages show only limited payment status and do not expose proof URLs, notes, provider charge IDs, or source IDs.
+
+Local webhook testing:
+
+- Use Omise test mode.
+- Expose your local app with a tunneling tool such as ngrok.
+- Configure the Omise test webhook to the tunnel URL plus `/api/webhooks/omise?secret=...`.
+- In the Omise dashboard, open the test charge and mark it successful or failed.
+- Refresh the TutorTrack payment status page.
+
+Verify PromptPay gateway work with:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run build
+```
+
 ## Project Structure
 
 - `app/` routes, pages, layouts, and route-level UI states.
@@ -544,6 +702,56 @@ npm run build
 - `types/` shared TypeScript types.
 - `tests/` Vitest tests.
 
-## Phase 12 Scope
+## Security Hardening and Production Readiness
 
-This phase implements progress overview/detail pages, reusable progress report components, tutor progress note UI, admin progress inspection, parent-friendly progress wording, and UI helper tests. PDF export, AI recommendations, payment gateway processing, and deeper analytics should be added in later phases with server-side authorization and tests.
+Phase 15 focuses on correctness, authorization, validation, and repeatable verification. It does not add AI recommendations, PDF export, notification workflows, or large UI redesigns. Payment gateway support is added separately in Phase 18.
+
+Current completed MVP modules:
+
+- Auth, signed HttpOnly sessions, role dashboards, and server-side guards.
+- Public marketplace pages for approved tutors and published courses.
+- Tutor/admin course management.
+- Enrollment with capacity and duplicate checks.
+- Sessions and attendance for active enrollments.
+- Assignments, submissions, and tutor grading.
+- Assessments and skill progress.
+- Deterministic progress report engine and protected progress report UI.
+- Manual payment submission, parent payment flow, tutor limited payment visibility, admin verification, and Omise/Opn PromptPay gateway payments.
+
+Security model:
+
+- Public users can access only the homepage, approved tutor pages, published course pages, login, and register.
+- Admins can access all platform data and management pages.
+- Tutors can access only their own courses and students with ACTIVE enrollment in those courses.
+- Students can access only their own learning records.
+- Parents can access only children linked through active `ParentStudentLink` records.
+- Dashboard routes use server-side guards. Client-side UI hiding is not treated as authorization.
+- Protected mutations validate input with Zod and enforce permission checks server-side.
+- Public marketplace queries select only public tutor/course fields and never include student, parent, enrollment, payment, submission, score, or progress data.
+
+Production-readiness checklist before a real deployment:
+
+- Set a strong production `AUTH_SECRET`.
+- Keep `ALLOW_DEMO_PASSWORD_LOGIN` unset or `false`.
+- Use a managed PostgreSQL database and set `DATABASE_URL` securely in the hosting provider.
+- Run `npm run db:migrate` before first production use.
+- Review seed data before deploying; demo accounts are for development/demo only.
+- Add real monitoring and backup policy for PostgreSQL before storing real student data.
+- Configure HTTPS-only hosting and avoid logging passwords, tokens, or private student records.
+
+Verification commands:
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm audit --audit-level=high
+npx prisma validate
+npm run build
+```
+
+GitHub Actions CI runs the same core checks on pull requests and pushes to `main`/`master`.
+
+## Phase 15 Scope
+
+This phase hardens auth, dependency security, generated-file hygiene, CI checks, validation consistency, and critical permission/test coverage. Remaining product work should be added in focused future phases with server-side authorization and tests.
